@@ -20,6 +20,8 @@ const EAR_CLOSED = 0.21;
 const EAR_OPEN = 0.26;
 const RESULT_COUNTDOWN_S = 10;
 
+const { eyeAspectRatio, makeBlinkDetector, hexToRgb, colorCorrelation, flashScore, meanDescriptor, euclideanDistance, decide } = window.VerifyCore;
+
 const $ = (id) => document.getElementById(id);
 const el = {
   status: $('status'),
@@ -259,18 +261,22 @@ async function runCapture(mode) {
     await sleep(1200);
     check(session);
 
-    const distances = hold.descriptors.map((d) => faceapi.euclideanDistance(state.reference, d));
-    const distance = distances.reduce((a, b) => a + b, 0) / distances.length;
+    const distance = hold.descriptors
+      .map((d) => euclideanDistance(Array.from(state.reference), Array.from(d)))
+      .reduce((a, b) => a + b, 0) / hold.descriptors.length;
     const threshold = Number(el.threshold.value);
-    const similarity = Math.max(0, Math.min(1, 1 - distance));
-    const flashOk = !el.optFlash.checked || flash.score >= 0.15;
-    const match = distance < threshold;
-    const ok = match && flashOk;
+    const verdict = decide({
+      distance, threshold,
+      blinked: true, requireBlink: false, // kedipan sudah diperiksa di langkahnya sendiri
+      flash: flash.score, requireFlash: el.optFlash.checked,
+    });
+    const { ok, similarity } = verdict;
 
-    let detail;
-    if (ok) detail = 'Wajah kamu cocok dengan wajah referensi.';
-    else if (!match) detail = 'Wajah tidak cocok dengan wajah referensi. Pastikan pencahayaan cukup dan wajah menghadap lurus.';
-    else detail = 'Pantulan warna layar di wajah terlalu lemah. Naikkan kecerahan layar dan coba lagi.';
+    const detail = {
+      ok: 'Wajah kamu cocok dengan wajah referensi.',
+      'no-match': 'Wajah tidak cocok dengan wajah referensi. Pastikan pencahayaan cukup dan wajah menghadap lurus.',
+      'weak-flash': 'Pantulan warna layar di wajah terlalu lemah. Naikkan kecerahan layar dan coba lagi.',
+    }[verdict.reason];
 
     showResult({
       ok,
@@ -401,14 +407,9 @@ async function alignAndHold(session, progressShare) {
   }
 }
 
-function eyeAspectRatio(pts) {
-  const d = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
-  return (d(pts[1], pts[5]) + d(pts[2], pts[4])) / (2 * d(pts[0], pts[3]));
-}
-
 async function waitForBlink(session) {
   const start = performance.now();
-  let closed = false;
+  const blink = makeBlinkDetector({ closed: EAR_CLOSED, open: EAR_OPEN });
   setPill('Kedipkan mata kamu', 'warn');
 
   for (;;) {
@@ -426,8 +427,7 @@ async function waitForBlink(session) {
       setPill('Kedipkan mata kamu', 'warn');
       const lm = det.landmarks;
       const ear = (eyeAspectRatio(lm.getLeftEye()) + eyeAspectRatio(lm.getRightEye())) / 2;
-      if (ear < EAR_CLOSED) closed = true;
-      else if (closed && ear > EAR_OPEN) return;
+      if (blink.push(ear)) return;
     }
     await nextFrame();
   }
@@ -453,23 +453,6 @@ function sampleFace(box) {
   return [r / n, g / n, b / n];
 }
 
-function hexToRgb(hex) {
-  const v = parseInt(hex.slice(1), 16);
-  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
-}
-
-// Korelasi antara warna yang ditampilkan dan perubahan warna di wajah.
-// Wajah asli di depan layar memantulkan warna layar, sehingga skornya positif.
-function colorCorrelation(expected, observed) {
-  const center = (v) => { const m = (v[0] + v[1] + v[2]) / 3; return v.map((x) => x - m); };
-  const e = center(expected);
-  const o = center(observed);
-  const dot = e[0] * o[0] + e[1] * o[1] + e[2] * o[2];
-  const ne = Math.hypot(...e);
-  const no = Math.hypot(...o);
-  return ne && no > 0.5 ? dot / (ne * no) : 0;
-}
-
 function setFlash(color) {
   el.capture.classList.toggle('flashing', Boolean(color));
   if (color) document.documentElement.style.setProperty('--flash', color);
@@ -479,7 +462,7 @@ async function runFlash(session, box) {
   setPill('Tetap diam', 'good');
   clearCanvas(el.overlay);
   const baseline = sampleFace(box);
-  const scores = [];
+  const samples = [];
 
   try {
     for (let i = 0; i < FLASH_COLORS.length; i++) {
@@ -487,15 +470,14 @@ async function runFlash(session, box) {
       setFlash(FLASH_COLORS[i]);
       await sleep(FLASH_SETTLE_MS);
       const sample = sampleFace(box);
-      const observed = sample.map((v, k) => v - baseline[k]);
-      scores.push(colorCorrelation(hexToRgb(FLASH_COLORS[i]), observed));
+      samples.push({ color: hexToRgb(FLASH_COLORS[i]), delta: sample.map((v, k) => v - baseline[k]) });
       setProgress(0.7 + 0.3 * ((i + 1) / FLASH_COLORS.length));
       await sleep(FLASH_MS - FLASH_SETTLE_MS);
     }
   } finally {
     setFlash(null);
   }
-  return { score: scores.reduce((a, b) => a + b, 0) / scores.length };
+  return { score: flashScore(samples) };
 }
 
 /* ================= Gambar ================= */
@@ -543,12 +525,6 @@ function snapshotFace(box) {
 }
 
 /* ================= Wajah referensi ================= */
-
-function meanDescriptor(list) {
-  const out = new Float32Array(128);
-  list.forEach((d) => d.forEach((v, i) => { out[i] += v / list.length; }));
-  return out;
-}
 
 function setReference(descriptor, thumbCanvas) {
   state.reference = descriptor;

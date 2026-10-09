@@ -40,6 +40,25 @@ Atau publikasikan folder ini ke GitHub Pages / Netlify / Vercel (semuanya https)
 | `style.css`  | Tema CMYK + pelangi, mode terang/gelap otomatis  |
 | `app.js`     | Kamera, deteksi wajah, cek kedipan, verifikasi   |
 
+## Pengujian (tanpa kamera)
+
+Logika keputusan dipisah ke `verify-core.js` sebagai fungsi murni, jadi bisa
+diuji tanpa kamera, tanpa dataset, dan tanpa internet:
+
+```bash
+node --test
+```
+
+Uji ini memeriksa dengan angka buatan: jarak descriptor, deteksi kedipan (EAR
+dengan histeresis), skor pantulan warna, dan keputusan akhir (`decide`) termasuk
+kasus wajah beda, tidak berkedip, dan pantulan warna lemah.
+
+> Yang belum bisa diuji tanpa perangkat: **wajah asli lolos liveness** di depan
+> kamera sungguhan. Itu satu-satunya bagian yang butuh kamera, dan dilakukan
+> paling akhir. Untuk mengukur ketahanan terhadap wajah palsu, gunakan dataset
+> anti-spoofing yang dikumpulkan dengan izin (mis. CelebA-Spoof) — jangan membuat
+> wajah tiruan dari foto orang.
+
 ## Catatan
 
 Ini cocok untuk demo, absensi sederhana, atau belajar. Untuk keamanan tingkat
