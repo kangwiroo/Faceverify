@@ -2,7 +2,8 @@
 <html lang="id">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
   <title>FaceVerify</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%279%27 cy=%279%27 r=%277%27 fill=%27%2300aeef%27/%3E%3Ccircle cx=%2723%27 cy=%279%27 r=%277%27 fill=%27%23ec008c%27/%3E%3Ccircle cx=%279%27 cy=%2723%27 r=%277%27 fill=%27%23fff200%27/%3E%3Ccircle cx=%2723%27 cy=%2723%27 r=%277%27 fill=%27%23111%27/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -13,80 +14,130 @@
   <script defer src="app.js"></script>
 </head>
 <body>
-  <header class="top">
-    <div class="brand">
-      <span class="cmyk-dots" aria-hidden="true"><i class="c"></i><i class="m"></i><i class="y"></i><i class="k"></i></span>
-      <h1 class="rainbow-text">FaceVerify</h1>
-    </div>
-    <p id="status" class="status loading">Memuat model wajah…</p>
-  </header>
+  <div class="app">
 
-  <main class="grid">
-    <!-- Kamera -->
-    <section class="card stage-card">
-      <h2><span class="step c">1</span> Kamera</h2>
-      <div id="stage" class="stage idle">
-        <div class="ring" aria-hidden="true"></div>
-        <div class="viewport">
-          <video id="video" autoplay muted playsinline></video>
-          <canvas id="overlay"></canvas>
-          <p id="placeholder" class="placeholder">Kamera belum aktif</p>
+    <!-- ================= Beranda ================= -->
+    <section id="screen-home" class="screen active">
+      <header class="brand-bar">
+        <span class="cmyk-dots" aria-hidden="true"><i class="c"></i><i class="m"></i><i class="y"></i><i class="k"></i></span>
+        <h1 class="rainbow-text">FaceVerify</h1>
+      </header>
+      <p id="status" class="status loading">Memuat model wajah…</p>
+
+      <div class="card ref-card">
+        <div class="avatar">
+          <canvas id="refCanvas" width="240" height="240"></canvas>
+          <svg id="refEmpty" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 12a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0 2c-4.4 0-8 2.2-8 5v2h16v-2c0-2.8-3.6-5-8-5Z"/></svg>
+        </div>
+        <div class="ref-text">
+          <h2>Wajah referensi</h2>
+          <p id="refInfo">Belum ada wajah terdaftar.</p>
         </div>
       </div>
-      <p id="hint" class="hint">Tekan “Nyalakan kamera” untuk mulai.</p>
-      <div class="row">
-        <button id="btnCamera" class="btn btn-c" disabled>Nyalakan kamera</button>
-      </div>
-    </section>
 
-    <!-- Referensi -->
-    <section class="card">
-      <h2><span class="step m">2</span> Wajah referensi</h2>
-      <div class="ref-box">
-        <canvas id="refCanvas" width="320" height="320"></canvas>
-        <p id="refEmpty" class="placeholder">Belum ada wajah terdaftar</p>
-      </div>
-      <p id="refInfo" class="hint">Unggah foto atau ambil dari kamera.</p>
       <div class="row">
-        <label class="btn btn-m" id="lblUpload">
+        <button id="btnEnroll" class="btn btn-c" disabled>Swafoto referensi</button>
+        <label id="lblUpload" class="btn btn-m disabled">
           Unggah foto
           <input id="fileInput" type="file" accept="image/*" hidden disabled>
         </label>
-        <button id="btnCapture" class="btn btn-y" disabled>Ambil dari kamera</button>
-        <button id="btnClear" class="btn btn-ghost" disabled>Hapus</button>
+        <button id="btnClear" class="btn btn-ghost" hidden>Hapus</button>
       </div>
-    </section>
 
-    <!-- Verifikasi -->
-    <section class="card verify-card">
-      <h2><span class="step y">3</span> Verifikasi</h2>
+      <button id="btnVerify" class="btn btn-rainbow" disabled>Mulai verifikasi</button>
 
-      <div class="settings">
+      <details class="settings">
+        <summary>Pengaturan</summary>
         <label class="field">
           <span>Ambang jarak <b id="thrVal">0.50</b></span>
           <input id="threshold" type="range" min="0.30" max="0.70" step="0.01" value="0.50">
           <small>Lebih kecil = lebih ketat</small>
         </label>
         <label class="toggle">
-          <input id="liveness" type="checkbox" checked>
+          <input id="optBlink" type="checkbox" checked>
           <span class="switch"></span>
-          <span>Cek kedipan (anti foto)</span>
+          <span>Cek kedipan mata</span>
         </label>
+        <label class="toggle">
+          <input id="optFlash" type="checkbox">
+          <span class="switch"></span>
+          <span>Wajibkan lolos cek pantulan warna <small>(eksperimental)</small></span>
+        </label>
+      </details>
+
+      <p class="privacy">Semua proses berjalan di perangkat kamu. Foto dan data wajah tidak dikirim ke server.</p>
+    </section>
+
+    <!-- ================= Ambil swafoto ================= -->
+    <section id="screen-capture" class="screen">
+      <header class="top-bar">
+        <span></span>
+        <h2>Ambil Swafoto</h2>
+        <button id="btnClose" class="icon-btn" aria-label="Tutup">
+          <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg>
+        </button>
+      </header>
+      <p class="lead">Ikuti petunjuk yang diberikan dan pastikan wajah kamu terlihat jelas.</p>
+
+      <div id="stage" class="stage">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="overlay"></canvas>
+        <svg id="mask" class="mask" aria-hidden="true">
+          <defs>
+            <linearGradient id="rainbowStroke" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#ff3b3b"/>
+              <stop offset=".17" stop-color="#ff9f1c"/>
+              <stop offset=".33" stop-color="#fff200"/>
+              <stop offset=".5" stop-color="#2ee66b"/>
+              <stop offset=".67" stop-color="#00aeef"/>
+              <stop offset=".83" stop-color="#5b5bff"/>
+              <stop offset="1" stop-color="#ec008c"/>
+            </linearGradient>
+          </defs>
+          <!-- Bentuk diatur oleh layoutMask() di app.js mengikuti ukuran area kamera -->
+          <path id="maskOut" class="mask-out" fill-rule="evenodd"/>
+          <ellipse id="maskTint" class="mask-tint"/>
+          <ellipse id="ringOuter" class="ring ring-outer"/>
+          <ellipse id="ringInner" class="ring"/>
+          <path id="ringProgress" class="ring-progress" pathLength="100"/>
+        </svg>
+        <div id="pill" class="pill">Menyalakan kamera…</div>
       </div>
 
-      <button id="btnVerify" class="btn btn-rainbow" disabled>Verifikasi sekarang</button>
+      <ol id="captureSteps" class="mini-steps"></ol>
+    </section>
 
-      <div id="result" class="result" hidden>
+    <!-- ================= Memproses ================= -->
+    <section id="screen-process" class="screen center">
+      <div class="spinner" aria-hidden="true"></div>
+      <p class="process-text">Memverifikasi wajah…</p>
+    </section>
+
+    <!-- ================= Hasil ================= -->
+    <section id="screen-result" class="screen center">
+      <div id="resultIcon" class="result-icon"></div>
+      <h2 id="resultTitle" class="result-title"></h2>
+      <p id="resultDetail" class="result-detail"></p>
+
+      <div id="resultScore" class="score">
+        <div class="score-head"><span>Kemiripan</span><b id="scoreVal">0%</b></div>
         <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
-        <p id="resultTitle" class="result-title"></p>
-        <p id="resultDetail" class="result-detail"></p>
+        <p id="scoreMeta" class="score-meta"></p>
+      </div>
+
+      <div class="stepper-card">
+        <div class="score-head"><span id="stepLabel">Langkah 0 dari 0</span><b id="stepPct">0%</b></div>
+        <div id="stepper" class="stepper"></div>
+      </div>
+
+      <p id="countdown" class="countdown"></p>
+      <div class="row">
+        <button id="btnRetry" class="btn btn-rainbow">Coba lagi</button>
+        <button id="btnHome" class="btn btn-ghost">Beranda</button>
       </div>
     </section>
-  </main>
+  </div>
 
-  <footer class="foot">
-    <div class="cmyk-bar" aria-hidden="true"></div>
-    <p>Semua proses berjalan di browser kamu. Foto dan data wajah tidak dikirim ke server mana pun.</p>
-  </footer>
+  <div id="toast" class="toast" hidden></div>
 </body>
 </html>

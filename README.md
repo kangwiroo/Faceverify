@@ -5,13 +5,21 @@ Semua proses (deteksi, pengenalan wajah, dan cek kedipan) berjalan di browser
 menggunakan [`@vladmandic/face-api`](https://github.com/vladmandic/face-api).
 Tidak ada foto atau data wajah yang dikirim ke server.
 
-## Fitur
+## Alur
 
-- **Wajah referensi**: unggah foto atau ambil langsung dari kamera. Disimpan di `localStorage` browser.
-- **Verifikasi langsung**: membandingkan wajah di kamera dengan referensi (rata-rata 5 sampel, jarak Euclidean descriptor 128-dimensi).
-- **Cek kedipan (liveness)**: menolak foto statis dengan mendeteksi kedipan mata (Eye Aspect Ratio).
-- **Ambang yang bisa diatur**: geser untuk membuat verifikasi lebih ketat atau longgar (bawaan `0.50`).
-- Overlay kotak wajah bergradasi pelangi dan titik landmark berwarna cyan / magenta / kuning.
+Tampilan mobile-first, layar per layar:
+
+1. **Beranda**: daftarkan wajah referensi lewat swafoto atau unggah foto (disimpan di `localStorage`).
+2. **Ambil Swafoto**: kamera dengan panduan **oval wajah**. Petunjuk di label atas oval
+   ("Dekatkan wajah", "Posisikan wajah di tengah oval", "Tetap diam") dan garis progres pelangi di oval.
+3. **Kedipan**: minta pengguna berkedip (Eye Aspect Ratio) untuk menolak foto statis. Bisa dimatikan.
+4. **Kilasan warna**: layar berkedip penuh dengan warna CMYK + pelangi. Pantulan warna di wajah
+   diukur sebagai sinyal tambahan wajah asli (eksperimental, bisa diwajibkan di Pengaturan).
+5. **Memproses**, lalu **Hasil**: "Verifikasi Wajah Berhasil/Gagal", persentase kemiripan,
+   progres "Langkah x dari y", dan kembali otomatis ke beranda.
+
+Pencocokan memakai rata-rata jarak Euclidean descriptor 128-dimensi dari 6 frame stabil.
+Ambang bawaan `0.50` (bisa diatur di Pengaturan).
 
 ## Menjalankan
 
