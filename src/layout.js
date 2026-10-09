@@ -8,6 +8,7 @@ export const PAGES = {
   socmed:    { label: 'Social Media', accent: '#ec4899', icon: 'M12 8a4 4 0 100 8 4 4 0 000-8zM20 12h2M2 12h2M12 2v2M12 20v2' },
   event:     { label: 'Event', accent: '#8b5cf6', icon: 'M4 6h16v14H4zM8 3v4M16 3v4M4 10h16' },
   member:    { label: 'Member', accent: '#06b6d4', icon: 'M16 14a4 4 0 10-8 0M12 7a3 3 0 100 6 3 3 0 000-6z' },
+  booking:   { label: 'Jadwal Booking', accent: '#0ea5e9', icon: 'M4 6h16v14H4zM8 3v4M16 3v4M9 14l2 2 4-4' },
   schedule:  { label: 'Penjadwalan', accent: '#3b82f6', icon: 'M4 6h16v14H4zM8 3v4M16 3v4M9 13h6M9 17h4' },
   hrd:       { label: 'HRD', accent: '#14b8a6', icon: 'M12 7a3 3 0 100 6 3 3 0 000-6zM6 20a6 6 0 1112 0' },
   prestasi:  { label: 'Prestasi & Absen', accent: '#f97316', icon: 'M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0z' },
@@ -16,7 +17,7 @@ export const PAGES = {
 };
 
 const SECTIONS = [
-  ['Operasional', ['dashboard', 'kasir', 'event', 'member']],
+  ['Operasional', ['dashboard', 'kasir', 'booking', 'event', 'member']],
   ['Keuangan', ['finance']],
   ['Konten', ['socmed']],
   ['SDM', ['hrd', 'schedule', 'prestasi']],
@@ -30,7 +31,8 @@ export const RELATIONS = {
   kasir: ['finance', 'member', 'event'],
   finance: ['kasir', 'event', 'admin'],
   socmed: ['event', 'member'],
-  event: ['kasir', 'finance', 'member', 'schedule', 'socmed'],
+  booking: ['kasir', 'event', 'finance', 'schedule'],
+  event: ['kasir', 'finance', 'member', 'schedule', 'socmed', 'booking'],
   member: ['kasir', 'event', 'socmed'],
   schedule: ['hrd', 'event', 'prestasi'],
   hrd: ['schedule', 'prestasi'],
@@ -94,6 +96,10 @@ export function layout({ user, active, title, section = 'FiftyNineHub', body }) 
 }
 
 export function loginPage(error = '') {
+  const keys = [1, 2, 3, 4, 5, 6, 7, 8, 9, 'x', 0, '<']
+    .map((k) => k === 'x' ? '<span></span>'
+      : k === '<' ? `<button type="button" class="key" data-k="back">⌫</button>`
+      : `<button type="button" class="key" data-k="${k}">${k}</button>`).join('');
   return `<!doctype html><html lang="id"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Masuk · FiftyNineHub</title>
@@ -101,14 +107,31 @@ export function loginPage(error = '') {
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/app.css"></head>
 <body class="login-body">
-<form class="login-card" method="post" action="/login">
-  <div class="brand center"><span class="logo lg">59</span><div class="center"><strong>FiftyNineHub</strong><small class="faint">Semua divisi, satu hub</small></div></div>
+<form class="login-card" id="pinForm" method="post" action="/login" autocomplete="off">
+  <div class="brand center"><span class="logo lg">59</span><div class="center"><strong>FiftyNineHub</strong><small class="faint">Masuk dengan PIN 8 digit</small></div></div>
   ${error ? `<p class="err center">${error}</p>` : ''}
-  <label>Email<input name="email" type="email" value="admin@fiftynine.id" required></label>
-  <label>Kata sandi<input name="password" type="password" value="admin123" required></label>
-  <button class="btn primary">Masuk</button>
-  <p class="hint">Demo: admin@fiftynine.id / admin123</p>
-</form></body></html>`;
+  <input type="hidden" name="pin" id="pinVal">
+  <div class="pin-dots" id="pinDots">${Array.from({ length: 8 }, () => '<i></i>').join('')}</div>
+  <div class="keypad">${keys}</div>
+  <p class="hint">Demo admin: 1 2 3 4 5 6 7 8</p>
+</form>
+<script>
+(function(){
+  var pin='', val=document.getElementById('pinVal'), dots=document.getElementById('pinDots').children, form=document.getElementById('pinForm');
+  function render(){ for(var i=0;i<8;i++) dots[i].className = i<pin.length?'on':''; val.value=pin; if(pin.length===8) form.submit(); }
+  document.querySelector('.keypad').addEventListener('click',function(e){
+    var b=e.target.closest('.key'); if(!b) return;
+    if(b.dataset.k==='back') pin=pin.slice(0,-1);
+    else if(pin.length<8) pin+=b.dataset.k;
+    render();
+  });
+  document.addEventListener('keydown',function(e){
+    if(e.key>='0'&&e.key<='9'&&pin.length<8){ pin+=e.key; render(); }
+    else if(e.key==='Backspace'){ pin=pin.slice(0,-1); render(); }
+  });
+})();
+</script>
+</body></html>`;
 }
 
 // dipakai halaman lain

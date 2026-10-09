@@ -1,4 +1,4 @@
-import { verifyPassword, signSession, verifySession } from './crypto.js';
+import { verifyPassword, signSession, verifySession, sha256hex } from './crypto.js';
 import { first } from './db.js';
 
 const COOKIE = 'fnh_session';
@@ -26,6 +26,20 @@ export async function login(env, email, password) {
   const user = await first(env, 'SELECT * FROM users WHERE email = ? AND active = 1', String(email).toLowerCase());
   if (!user) return null;
   if (!(await verifyPassword(password, user.salt, user.hash))) return null;
+  const token = await signSession(
+    { sub: user.id, name: user.name, email: user.email, role: user.role, exp: Date.now() + MAX_AGE * 1000 },
+    env.SESSION_SECRET);
+  return { user: { id: user.id, name: user.name, email: user.email, role: user.role }, token };
+}
+
+// Login dengan PIN 8 digit saja (akun ditemukan dari PIN).
+// Cari via sha256(pin) lalu verifikasi PBKDF2.
+export async function loginPin(env, pin) {
+  if (!/^\d{8}$/.test(String(pin || ''))) return null;
+  const lookup = await sha256hex(String(pin));
+  const user = await first(env, 'SELECT * FROM users WHERE pin_lookup = ? AND active = 1', lookup);
+  if (!user || !user.pin_hash) return null;
+  if (!(await verifyPassword(pin, user.pin_salt, user.pin_hash))) return null;
   const token = await signSession(
     { sub: user.id, name: user.name, email: user.email, role: user.role, exp: Date.now() + MAX_AGE * 1000 },
     env.SESSION_SECRET);

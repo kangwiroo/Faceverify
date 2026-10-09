@@ -28,6 +28,34 @@ Dashboard · **Kasir** · **Finance** · **Social Media** · **Event** ·
 - **LLM dipakai seminimal mungkin**: penjadwalan utama **deterministik**
   (round-robin, tanpa biaya); Nemotron hanya dipanggil bila diminta meninjau.
 
+## Login PIN, bind Ayo AVM, dan frame booking
+
+- **Login PIN 8 digit** (tanpa email). Akun dicari lewat `sha256(pin)` lalu
+  diverifikasi PBKDF2. PIN demo: **admin = `12345678`**, staff = `2001000x`.
+  > PIN 8 digit entropinya rendah — tambahkan rate-limit/lockout dan pepper
+  > per-perangkat saat produksi (disempurnakan di lokal).
+- **Bind akun Ayo AVM per user** (halaman HRD): tiap staff punya `ayo_account`
+  dan `ayo_mobile_token`.
+- **Jadwal Booking** (halaman tersendiri): menampilkan Ayo dalam **iframe**.
+  Set `AYO_EMBED_URL`. Jika Ayo memblokir iframe (X-Frame-Options/CSP), sediakan
+  URL embed resmi, atau pakai tombol "Buka di tab baru".
+- **Social media binding** (halaman Social Media): daftar akun terhubung per
+  platform; OAuth/token asli disimpan sebagai secret.
+
+### ⚠️ CATATAN untuk Claude Code (lokal) — mobile token AVM
+
+AVM Ayo membutuhkan **mobile token** untuk melakukan aktivitas. Token ini bisa
+dibaca ketika user sudah login ke situs AVM. **Contoh mobile token akan
+diberikan menyusul.** Tugas lokal:
+
+1. Cari cara membaca/menyegarkan mobile token dari sesi AVM (contoh menyusul).
+2. Simpan per user di `users.ayo_mobile_token` (sudah ada kolomnya) atau sebagai
+   secret bila lebih aman.
+3. Saat aksi ke AVM, tempelkan token pada request/link aksi ke Ayo.
+
+Saat ini sistem hanya **menyimpan** token (lewat halaman HRD) dan menyediakan
+kolomnya; pemakaian token ke API/aksi AVM diselesaikan setelah contoh ada.
+
 ## Storage berkas: Telegram (5 tahap rollback)
 
 Semua dokumen/berkas disimpan di **Telegram** (bot → channel privat), bukan di

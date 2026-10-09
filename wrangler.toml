@@ -15,6 +15,8 @@ binding = "ASSETS"
 APP_NAME = "FiftyNineHub"
 # Basis API Ayo Indonesia (isi sesuai integrasi resmi kamu)
 AYO_BASE_URL = ""
+# URL halaman Ayo yang ditampilkan di frame "Jadwal Booking" (iframe).
+AYO_EMBED_URL = ""
 # Gateway LLM yang OpenAI-compatible. Nemotron Ultra lewat NVIDIA API:
 LLM_BASE_URL = "https://integrate.api.nvidia.com/v1"
 LLM_MODEL = "nvidia/llama-3.1-nemotron-ultra-253b-v1"

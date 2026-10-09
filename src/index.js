@@ -1,4 +1,4 @@
-import { currentUser, login, sessionCookie, clearCookie } from './lib/auth.js';
+import { currentUser, loginPin, sessionCookie, clearCookie } from './lib/auth.js';
 import { can } from './lib/db.js';
 import { run } from './lib/db.js';
 import { uuid, hashPassword } from './lib/crypto.js';
@@ -13,7 +13,7 @@ const redirect = (to, headers = {}) => new Response(null, { status: 303, headers
 
 const PAGE_TITLES = Object.fromEntries(Object.entries(PAGES).map(([p, m]) => [p, m.label]));
 const PAGE_FN = {
-  dashboard: pages.dashboard, kasir: pages.kasir, finance: pages.finance, socmed: pages.socmed,
+  dashboard: pages.dashboard, kasir: pages.kasir, booking: pages.booking, finance: pages.finance, socmed: pages.socmed,
   event: pages.event, member: pages.member, schedule: pages.schedule, hrd: pages.hrd,
   prestasi: pages.prestasi, docs: pages.docs, admin: pages.admin,
 };
@@ -24,12 +24,13 @@ const RESOURCES = {
   event: { table: 'events', page: 'event', build: (f) => ({ title: f.title, venue: f.venue || null, starts_at: f.starts_at || null, ends_at: f.ends_at || null, status: 'rencana' }) },
   finance: { table: 'finance_entries', page: 'finance', build: (f) => ({ date: f.date || new Date().toISOString().slice(0, 10), type: f.type === 'expense' ? 'expense' : 'income', category: f.category || 'Umum', amount: Number(f.amount) || 0, note: f.note || null }) },
   socmed: { table: 'social_posts', page: 'socmed', build: (f) => ({ platform: f.platform || 'instagram', caption: f.caption || null, scheduled_at: f.scheduled_at || null, status: 'draft' }) },
+  social: { table: 'social_accounts', page: 'socmed', build: (f) => ({ platform: f.platform || 'instagram', handle: (f.handle || '').replace(/^@/, ''), status: 'bound' }) },
   achievement: { table: 'achievements', page: 'prestasi', build: (f) => ({ staff_id: f.staff_id, title: f.title, points: Number(f.points) || 0, date: f.date || new Date().toISOString().slice(0, 10), note: f.note || null }) },
   attendance: { table: 'attendance', page: 'prestasi', build: (f) => ({ staff_id: f.staff_id, date: f.date || new Date().toISOString().slice(0, 10), check_in: f.check_in || null, check_out: f.check_out || null, status: f.status || 'hadir', note: f.note || null }) },
 };
 // Tabel yang boleh dihapus lewat /api/<res>/<id>/delete
-const DELETABLE = { member: 'members', event: 'events', finance: 'finance_entries', socmed: 'social_posts', achievement: 'achievements', attendance: 'attendance', schedule: 'schedules', staff: 'users' };
-const DELETE_PAGE = { member: 'member', event: 'event', finance: 'finance', socmed: 'socmed', achievement: 'prestasi', attendance: 'prestasi', schedule: 'schedule', staff: 'hrd' };
+const DELETABLE = { member: 'members', event: 'events', finance: 'finance_entries', socmed: 'social_posts', social: 'social_accounts', achievement: 'achievements', attendance: 'attendance', schedule: 'schedules', staff: 'users' };
+const DELETE_PAGE = { member: 'member', event: 'event', finance: 'finance', socmed: 'socmed', social: 'socmed', achievement: 'prestasi', attendance: 'prestasi', schedule: 'schedule', staff: 'hrd' };
 
 async function insertRow(env, table, row) {
   const cols = ['id', ...Object.keys(row)];
@@ -75,6 +76,13 @@ async function handleApi(req, env, user, parts) {
     return redirect('/hrd');
   }
 
+  // Bind akun Ayo AVM + mobile token ke seorang staff
+  if (resource === 'staff' && b === 'bindayo') {
+    if (!can(user.role, 'hrd')) return new Response('forbidden', { status: 403 });
+    await run(env, 'UPDATE users SET ayo_account = ?, ayo_mobile_token = ? WHERE id = ?', form.ayo_account || null, form.ayo_mobile_token || null, form.user_id);
+    return redirect('/hrd');
+  }
+
   // Create generik
   if (b === 'create' && RESOURCES[resource]) {
     const def = RESOURCES[resource];
@@ -104,8 +112,8 @@ export default {
     if (path === '/login' && req.method === 'POST') {
       if (!env.SESSION_SECRET) return html(loginPage('SESSION_SECRET belum diset (wrangler secret put SESSION_SECRET).'));
       const f = Object.fromEntries((await req.formData()).entries());
-      const r = await login(env, f.email, f.password);
-      if (!r) return html(loginPage('Email atau kata sandi salah.'), 401);
+      const r = await loginPin(env, f.pin);
+      if (!r) return html(loginPage('PIN salah atau akun nonaktif.'), 401);
       return redirect('/dashboard', { 'set-cookie': sessionCookie(r.token) });
     }
     if (path === '/logout' && req.method === 'POST') return redirect('/login', { 'set-cookie': clearCookie() });

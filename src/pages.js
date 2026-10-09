@@ -128,11 +128,11 @@ export async function dashboard(env, user) {
 
   // grid divisi
   const docCount = (await first(env, 'SELECT COUNT(*) n FROM documents')).n;
-  const counts = { kasir: '—', finance: rpShort(balance), socmed: posts, event: events, member: members, schedule: sched, hrd: staff, prestasi: ach, docs: docCount, admin: '•' };
+  const counts = { kasir: '—', booking: 'Ayo', finance: rpShort(balance), socmed: posts, event: events, member: members, schedule: sched, hrd: staff, prestasi: ach, docs: docCount, admin: '•' };
   const desc = {
-    kasir: 'Transaksi & booking harian', finance: 'Arus kas & laporan', socmed: 'Konten terjadwal',
+    kasir: 'Transaksi & booking harian', booking: 'Jadwal booking (frame Ayo)', finance: 'Arus kas & laporan', socmed: 'Akun & konten terjadwal',
     event: 'Agenda acara venue', member: 'Basis member Ayo', schedule: 'Shift staff otomatis',
-    hrd: 'Staff & peran', prestasi: 'Prestasi & absen', docs: 'Berkas di Telegram (5 versi)', admin: 'Integrasi & pengguna',
+    hrd: 'Staff, peran & bind Ayo', prestasi: 'Prestasi & absen', docs: 'Berkas di Telegram (5 versi)', admin: 'Integrasi & pengguna',
   };
   const divs = Object.keys(PAGES).filter((p) => p !== 'dashboard' && can(user.role, p)).map((p) => {
     const m = PAGES[p];
@@ -205,26 +205,67 @@ export async function finance(env, user) {
 }
 
 export async function socmed(env, user) {
+  const accounts = await all(env, 'SELECT * FROM social_accounts ORDER BY created_at DESC');
   const rows = await all(env, 'SELECT * FROM social_posts ORDER BY scheduled_at DESC');
-  return header('socmed', user) + form('socmed', [
-    { key: 'platform', label: 'Platform', type: 'select', options: [['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['facebook', 'Facebook'], ['x', 'X']] },
-    { key: 'caption', label: 'Caption' }, { key: 'scheduled_at', label: 'Jadwal', type: 'datetime-local' },
-  ]) + table([
-    { key: 'platform', label: 'Platform', fmt: (v) => `<span class="tag">${esc(v)}</span>` }, { key: 'caption', label: 'Caption' },
-    { key: 'scheduled_at', label: 'Jadwal' }, { key: 'status', label: 'Status', fmt: (v) => `<span class="tag">${esc(v)}</span>` },
-  ], rows, 'socmed');
+  const platforms = [['instagram', 'Instagram'], ['tiktok', 'TikTok'], ['facebook', 'Facebook'], ['x', 'X'], ['youtube', 'YouTube']];
+  return header('socmed', user) +
+    `<h3>🔗 Akun terhubung (binding)</h3>
+     <p class="muted" style="margin:-6px 0 12px;font-size:13px">Daftarkan akun socmed yang dikelola. OAuth/token asli disimpan sebagai secret & disempurnakan di lokal.</p>` +
+    form('social', [
+      { key: 'platform', label: 'Platform', type: 'select', options: platforms },
+      { key: 'handle', label: 'Username / handle', required: true },
+    ]) + table([
+      { key: 'platform', label: 'Platform', fmt: (v) => `<span class="tag">${esc(v)}</span>` },
+      { key: 'handle', label: 'Handle', fmt: (v) => '@' + esc(v) },
+      { key: 'status', label: 'Status', fmt: (v) => `<span class="tag ${v === 'bound' ? 'aktif' : ''}">${esc(v)}</span>` },
+    ], accounts, 'social') +
+    `<h3 class="mt">🗓️ Konten terjadwal</h3>` +
+    form('socmed', [
+      { key: 'platform', label: 'Platform', type: 'select', options: platforms },
+      { key: 'caption', label: 'Caption' }, { key: 'scheduled_at', label: 'Jadwal', type: 'datetime-local' },
+    ]) + table([
+      { key: 'platform', label: 'Platform', fmt: (v) => `<span class="tag">${esc(v)}</span>` }, { key: 'caption', label: 'Caption' },
+      { key: 'scheduled_at', label: 'Jadwal' }, { key: 'status', label: 'Status', fmt: (v) => `<span class="tag">${esc(v)}</span>` },
+    ], rows, 'socmed');
+}
+
+export async function booking(env, user) {
+  const url = env.AYO_EMBED_URL || env.AYO_BASE_URL || '';
+  const frame = url
+    ? `<div class="ayo-frame"><iframe src="${esc(url)}" referrerpolicy="no-referrer" loading="lazy" sandbox="allow-scripts allow-same-origin allow-forms allow-popups" title="Jadwal Booking Ayo"></iframe></div>`
+    : `<div class="ayo-frame"><div class="ph">Set <code>AYO_EMBED_URL</code> (atau <code>AYO_BASE_URL</code>) untuk menampilkan jadwal booking Ayo di frame ini.</div></div>`;
+  return header('booking', user) +
+    `<div class="frame-bar">
+       <span class="chip ok">● Jadwal booking langsung dari Ayo</span>
+       ${url ? `<a class="btn ghost sm" href="${esc(url)}" target="_blank" rel="noopener">Buka di tab baru ↗</a>` : ''}
+     </div>` + frame +
+    `<p class="muted mt" style="font-size:13px">Catatan: sebagian situs memblokir tampilan dalam iframe (X-Frame-Options/CSP). Jika frame kosong, gunakan "Buka di tab baru", atau minta URL embed resmi dari Ayo.</p>`;
 }
 
 export async function hrd(env, user) {
-  const rows = await all(env, 'SELECT id, name, email, role, active FROM users ORDER BY created_at DESC');
-  return header('hrd', user) + form('staff', [
-    { key: 'name', label: 'Nama', required: true }, { key: 'email', label: 'Email', type: 'email', required: true },
-    { key: 'role', label: 'Peran', type: 'select', options: [['kasir', 'Kasir'], ['finance', 'Finance'], ['socmed', 'Social Media'], ['hrd', 'HRD'], ['staff', 'Staff']] },
-    { key: 'password', label: 'Kata sandi awal', type: 'password', required: true },
-  ]) + table([
-    { key: 'name', label: 'Nama' }, { key: 'email', label: 'Email' }, { key: 'role', label: 'Peran', fmt: (v) => `<span class="tag">${esc(v)}</span>` },
-    { key: 'active', label: 'Aktif', fmt: (v) => `<span class="tag ${v ? 'aktif' : 'alpa'}">${v ? 'ya' : 'tidak'}</span>` },
-  ], rows, 'staff');
+  const rows = await all(env, 'SELECT id, name, email, role, active, ayo_account, ayo_mobile_token FROM users ORDER BY created_at DESC');
+  const opts = rows.map((r) => [r.id, r.name]);
+  return header('hrd', user) +
+    `<h3>➕ Tambah staff</h3>` +
+    form('staff', [
+      { key: 'name', label: 'Nama', required: true }, { key: 'email', label: 'Email', type: 'email', required: true },
+      { key: 'role', label: 'Peran', type: 'select', options: [['kasir', 'Kasir'], ['finance', 'Finance'], ['socmed', 'Social Media'], ['hrd', 'HRD'], ['staff', 'Staff']] },
+      { key: 'password', label: 'Kata sandi awal', type: 'password', required: true },
+    ]) +
+    `<h3 class="mt">🔗 Bind akun Ayo AVM</h3>
+     <p class="muted" style="margin:-6px 0 12px;font-size:13px">Hubungkan tiap staff ke akun Ayo AVM-nya. Mobile token AVM diperlukan untuk aksi — lihat CATATAN di README (Claude Code mencari cara membacanya dari sesi AVM).</p>
+     <form class="form-row" method="post" action="/api/staff/bindayo">
+       <label>Staff<select name="user_id">${opts.map((o) => `<option value="${o[0]}">${esc(o[1])}</option>`).join('')}</select></label>
+       <label>Akun Ayo AVM<input name="ayo_account" placeholder="mis. AVM-12345"></label>
+       <label>Mobile token (opsional)<input name="ayo_mobile_token" placeholder="token dari sesi AVM"></label>
+       <button class="btn accent">Simpan binding</button>
+     </form>` +
+    table([
+      { key: 'name', label: 'Nama' }, { key: 'email', label: 'Email' }, { key: 'role', label: 'Peran', fmt: (v) => `<span class="tag">${esc(v)}</span>` },
+      { key: 'ayo_account', label: 'Ayo AVM', fmt: (v) => v ? `<span class="tag aktif">${esc(v)}</span>` : '<span class="faint">—</span>' },
+      { key: 'ayo_mobile_token', label: 'Token', fmt: (v) => v ? '<span class="tag aktif">ada</span>' : '<span class="faint">—</span>' },
+      { key: 'active', label: 'Aktif', fmt: (v) => `<span class="tag ${v ? 'aktif' : 'alpa'}">${v ? 'ya' : 'tidak'}</span>` },
+    ], rows, 'staff');
 }
 
 export async function prestasi(env, user) {
