@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FaceVerify — Simulator Liveness</title>
+  <style>
+    :root { --cyan:#00aeef; --magenta:#ec008c; --yellow:#fff200; --ok:#00b37a; --bad:#e5195f; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family:"Space Grotesk",system-ui,sans-serif; background:#0c0c10; color:#f4f4f8; }
+    .wrap { max-width:720px; margin:0 auto; padding:20px 16px 40px; }
+    h1 { font-size:22px; margin:0 0 4px;
+      background:linear-gradient(90deg,#ff3b3b,#ff9f1c,#fff200,#2ee66b,#00aeef,#5b5bff,#ec008c);
+      -webkit-background-clip:text; background-clip:text; color:transparent; }
+    p.sub { color:#9a9aab; margin:0 0 18px; font-size:14px; }
+    .stage { position:relative; aspect-ratio:1; border-radius:20px; overflow:hidden;
+      background:#111; display:grid; place-items:center; transition:background .12s; }
+    canvas { width:100%; height:100%; display:block; }
+    .pill { position:absolute; top:14px; left:50%; transform:translateX(-50%);
+      padding:6px 14px; border-radius:999px; background:rgba(0,0,0,.6); font-size:13px; font-weight:700; }
+    .controls { display:flex; gap:10px; flex-wrap:wrap; margin:16px 0; }
+    button { font:inherit; font-weight:700; border:0; border-radius:12px; padding:11px 16px; cursor:pointer; }
+    .run { background:linear-gradient(90deg,#00aeef,#2ee66b); color:#0c0c10; }
+    .mode { background:#1f1f29; color:#f4f4f8; border:1px solid #2c2c38; }
+    .mode.active { outline:2px solid var(--cyan); }
+    .panel { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .box { background:#16161d; border:1px solid #2c2c38; border-radius:14px; padding:14px; }
+    .box h2 { font-size:13px; margin:0 0 8px; color:#9a9aab; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+    .big { font-size:26px; font-weight:700; }
+    .verdict { margin-top:12px; padding:14px; border-radius:14px; font-weight:700; text-align:center; }
+    .verdict.ok { background:rgba(0,179,122,.15); color:var(--ok); }
+    .verdict.bad { background:rgba(229,25,95,.15); color:var(--bad); }
+    .ear { font-variant-numeric:tabular-nums; }
+    .note { color:#6b6b7b; font-size:12px; margin-top:18px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Simulator Liveness</h1>
+    <p class="sub">Wajah mesh sintetis (bukan foto siapa pun) menguji deteksi kedipan dan kilasan warna
+      lewat kode yang sama dengan aplikasi — tanpa kamera.</p>
+
+    <div class="stage" id="stage">
+      <canvas id="face" width="400" height="400"></canvas>
+      <div class="pill" id="pill">Tekan “Jalankan simulasi”</div>
+    </div>
+
+    <div class="controls">
+      <button class="mode active" id="mLive">Wajah hidup</button>
+      <button class="mode" id="mPhoto">Foto diam</button>
+      <button class="run" id="run">Jalankan simulasi</button>
+    </div>
+
+    <div class="panel">
+      <div class="box"><h2>Kedipan terdeteksi</h2><div class="big" id="blinks">0</div><div class="ear" id="ear">EAR: —</div></div>
+      <div class="box"><h2>Skor pantulan warna</h2><div class="big" id="flash">—</div><div class="ear">ambang ≥ 0.15</div></div>
+    </div>
+    <div class="verdict" id="verdict" style="display:none"></div>
+
+    <p class="note">Mode “Foto diam” meniru foto yang disodorkan ke kamera: mata tidak berkedip dan
+      kulit tidak memantulkan warna layar, sehingga seharusnya ditolak.</p>
+  </div>
+
+  <script src="verify-core.js"></script>
+  <script src="verify-session.js"></script>
+  <script src="sim/liveness-sim.js"></script>
+  <script>
+  const core = window.VerifyCore, Sess = window.VerifySession, Sim = window.LivenessSim;
+  const $ = (id) => document.getElementById(id);
+  const stage = $('stage'), ctx = $('face').getContext('2d');
+  const PALETTE = Sess.DEFAULT_PALETTE;
+  let mode = 'live';
+
+  // Titik wajah sederhana (mesh), termasuk dua mata yang tingginya bisa diubah.
+  function drawFace(lidH, tint) {
+    const W = 400, H = 400;
+    ctx.clearRect(0, 0, W, H);
+    // oval wajah
+    ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(200, 210, 120, 150, 0, 0, 7); ctx.stroke();
+    // garis mesh vertikal/horizontal tipis
+    ctx.strokeStyle = 'rgba(255,255,255,.08)';
+    for (let i = 1; i < 6; i++) { ctx.beginPath(); ctx.moveTo(80 + i*40, 70); ctx.lineTo(80 + i*40, 350); ctx.stroke(); }
+    for (let j = 1; j < 7; j++) { ctx.beginPath(); ctx.moveTo(80, 70 + j*40); ctx.lineTo(320, 70 + j*40); ctx.stroke(); }
+    // mata (titik landmark, warna CMYK)
+    const eyes = [Sim.eyePoints(150, 180, 60, lidH), Sim.eyePoints(250, 180, 60, lidH)];
+    const CMYK = ['#00aeef', '#ec008c', '#fff200'];
+    eyes.forEach((pts) => {
+      ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.beginPath();
+      pts.forEach((p, i) => { const x = p.x, y = p.y; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); });
+      ctx.closePath(); ctx.stroke();
+      pts.forEach((p, i) => { ctx.fillStyle = CMYK[i % 3]; ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, 7); ctx.fill(); });
+    });
+    // hidung & mulut
+    ctx.strokeStyle = 'rgba(255,255,255,.4)';
+    ctx.beginPath(); ctx.moveTo(200, 200); ctx.lineTo(200, 250); ctx.stroke();
+    ctx.beginPath(); ctx.arc(200, 285, 30, 0.2*Math.PI, 0.8*Math.PI); ctx.stroke();
+    stage.style.background = tint || '#111';
+  }
+
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  async function run() {
+    $('verdict').style.display = 'none';
+    const live = mode === 'live';
+    const blinkDet = core.makeBlinkDetector();
+
+    // Fase 1: kedipan (atau tidak)
+    const frames = 22;
+    for (let i = 0; i < frames; i++) {
+      const lidH = live ? Sim.lidHeight(i, { blinkAt: 11, dur: 4 }) : 6;
+      const ear = core.eyeAspectRatio(Sim.eyePoints(0, 0, 10, lidH));
+      blinkDet.push(ear);
+      drawFace(lidH, '#111');
+      $('pill').textContent = live ? '👁️ Menguji kedipan…' : 'Foto diam — tidak ada kedipan';
+      $('ear').textContent = 'EAR: ' + ear.toFixed(3);
+      $('blinks').textContent = blinkDet.count;
+      await sleep(60);
+    }
+
+    // Fase 2: kilasan warna (urutan acak dari logika tantangan)
+    const { flashOrder } = Sess.randomChallenge();
+    const samples = live ? Sim.liveFlashSamples(flashOrder) : Sim.photoFlashSamples(flashOrder);
+    for (let i = 0; i < flashOrder.length; i++) {
+      $('pill').textContent = 'Kilasan warna ' + (i+1) + '/' + flashOrder.length;
+      // Wajah hidup sedikit memantulkan warna; foto tidak
+      const tint = live ? flashOrder[i] + '55' : flashOrder[i];
+      drawFace(6, flashOrder[i]);
+      await sleep(260);
+    }
+    drawFace(6, '#111');
+
+    const flash = Sess.scoreChallenge(flashOrder, samples);
+    $('flash').textContent = flash.score.toFixed(2);
+
+    // Keputusan (pakai verifyAttempt asli)
+    const ref = Array.from({ length: 128 }, (_, i) => Math.sin(i) * 0.1);
+    const verdict = Sess.verifyAttempt({
+      reference: ref, descriptors: [ref.map(v => v + 0.01)],
+      blinked: blinkDet.count > 0, flashSamples: samples, issuedFlashOrder: flashOrder,
+    });
+    const el = $('verdict');
+    el.style.display = 'block';
+    el.className = 'verdict ' + (verdict.ok ? 'ok' : 'bad');
+    const why = { ok:'Lolos', 'no-blink':'Ditolak — tidak ada kedipan', 'no-match':'Ditolak — wajah beda',
+      'weak-flash':'Ditolak — pantulan warna lemah', replay:'Ditolak — urutan warna salah' }[verdict.reason];
+    el.textContent = (verdict.ok ? '✓ ' : '✗ ') + why;
+    $('pill').textContent = 'Selesai';
+  }
+
+  $('mLive').onclick = () => { mode='live'; $('mLive').classList.add('active'); $('mPhoto').classList.remove('active'); };
+  $('mPhoto').onclick = () => { mode='photo'; $('mPhoto').classList.add('active'); $('mLive').classList.remove('active'); };
+  $('run').onclick = run;
+  drawFace(6, '#111');
+  </script>
+</body>
+</html>

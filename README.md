@@ -87,6 +87,19 @@ Uji ini memeriksa dengan angka buatan: jarak descriptor, deteksi kedipan (EAR
 dengan histeresis), skor pantulan warna, dan keputusan akhir (`decide`) termasuk
 kasus wajah beda, tidak berkedip, dan pantulan warna lemah.
 
+### Simulator liveness (`sim.html`)
+
+Untuk melihat deteksi kedipan dan kilasan warna bekerja tanpa kamera, buka
+`sim.html`. Ia menganimasikan **wajah mesh sintetis** (bukan foto siapa pun):
+mata menutup lalu membuka untuk menguji deteksi kedipan, dan latar berkedip
+warna CMYK/pelangi untuk menguji cek pantulan. Semua dialirkan ke kode deteksi
+yang sama dengan aplikasi (`verify-core.js` / `verify-session.js`).
+
+- Mode **Wajah hidup** → kedipan terdeteksi, pantulan tinggi → **Lolos**.
+- Mode **Foto diam** → tanpa kedipan, pantulan ~0 → **Ditolak**.
+
+Ini menguji jalur kedipan/warna/keputusan, bukan merender wajah realistis.
+
 > Yang belum bisa diuji tanpa perangkat: **wajah asli lolos liveness** di depan
 > kamera sungguhan. Itu satu-satunya bagian yang butuh kamera, dan dilakukan
 > paling akhir. Untuk mengukur ketahanan terhadap wajah palsu, gunakan dataset
