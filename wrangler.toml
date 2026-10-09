@@ -1,0 +1,40 @@
+# FiftyNineHub — Cloudflare Worker (D1 + R2)
+# Setelah clone di lokal: isi database_id (hasil `wrangler d1 create`), lalu set secrets.
+name = "fiftyninehub"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+# Aset statis (CSS/JS). Path yang cocok disajikan tanpa menjalankan Worker.
+[assets]
+directory = "./public"
+binding = "ASSETS"
+
+# Variabel NON-rahasia (boleh masuk Git). Rahasia pakai `wrangler secret put`.
+[vars]
+APP_NAME = "FiftyNineHub"
+# Basis API Ayo Indonesia (isi sesuai integrasi resmi kamu)
+AYO_BASE_URL = ""
+# Gateway LLM yang OpenAI-compatible. Nemotron Ultra lewat NVIDIA API:
+LLM_BASE_URL = "https://integrate.api.nvidia.com/v1"
+LLM_MODEL = "nvidia/llama-3.1-nemotron-ultra-253b-v1"
+# Berapa banyak key yang dipakai dari pool (round-robin). Sisanya cadangan.
+LLM_ACTIVE_KEYS = "20"
+
+# Database D1 — isi database_id setelah `wrangler d1 create fiftyninehub`
+[[d1_databases]]
+binding = "DB"
+database_name = "fiftyninehub"
+database_id = "REPLACE_AFTER_D1_CREATE"
+migrations_dir = "migrations"
+
+# Penyimpanan objek R2 — hanya untuk file (ekspor, media socmed)
+[[r2_buckets]]
+binding = "FILES"
+bucket_name = "fiftyninehub-files"
+
+# Rahasia yang HARUS diset via `wrangler secret put` (JANGAN taruh di sini / Git):
+#   SESSION_SECRET   -> kunci tanda tangan sesi (acak panjang)
+#   LLM_API_KEYS     -> daftar API key dipisah koma (round-robin)
+#   AYO_TOKEN        -> token akses API Ayo Indonesia
+#   GOOGLE_SA_JSON   -> JSON service account Google (untuk Sheets/Docs)

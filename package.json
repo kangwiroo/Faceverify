@@ -1,0 +1,23 @@
+{
+  "name": "fiftyninehub",
+  "version": "0.1.0",
+  "description": "FiftyNineHub — sistem manajemen venue di Cloudflare Workers (D1 + R2), sinkron dengan Ayo Indonesia dan Google Workspace.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create fiftyninehub",
+    "db:migrate": "wrangler d1 migrations apply fiftyninehub --remote",
+    "db:migrate:local": "wrangler d1 migrations apply fiftyninehub --local",
+    "r2:create": "wrangler r2 bucket create fiftyninehub-files",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

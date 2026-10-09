@@ -1,0 +1,14 @@
+# Salin ke .dev.vars untuk pengembangan lokal (file ini TIDAK masuk Git).
+# Di produksi, set lewat: wrangler secret put <NAMA>
+
+# Kunci tanda tangan sesi (acak panjang)
+SESSION_SECRET="ganti-dengan-string-acak-panjang"
+
+# Kumpulan API key LLM (dipisah koma). Round-robin memakai LLM_ACTIVE_KEYS pertama.
+LLM_API_KEYS="key1,key2,key3"
+
+# Token API Ayo Indonesia
+AYO_TOKEN=""
+
+# Service account Google (satu baris JSON)
+GOOGLE_SA_JSON=""
