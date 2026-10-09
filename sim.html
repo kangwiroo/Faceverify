@@ -150,7 +150,8 @@
 
   $('mLive').onclick = () => { mode='live'; $('mLive').classList.add('active'); $('mPhoto').classList.remove('active'); };
   $('mPhoto').onclick = () => { mode='photo'; $('mPhoto').classList.add('active'); $('mLive').classList.remove('active'); };
-  $('run').onclick = run;
+  window.drawFace = drawFace; // untuk visualisasi/penangkapan frame
+  $("run").onclick = run;
   drawFace(6, '#111');
   </script>
 </body>
