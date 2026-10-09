@@ -1,18 +1,44 @@
 # FiftyNineHub
 
-Sistem manajemen venue di **Cloudflare Workers + D1 + R2**, dibangun untuk
-sinkron dengan **Ayo Indonesia** dan **Google Workspace**, dengan biaya
-seminimal mungkin.
+Sistem manajemen venue satu-hub di **Cloudflare Workers + D1 + R2**, disinkron
+dengan **Ayo Indonesia (AVM)**, **Google Workspace**, **Telegram** (storage
+berkas), dan **Nemotron** (LLM). Semua divisi dalam satu aplikasi, saling terhubung.
 
-> Status: **fondasi (v0) yang berjalan** di `wrangler dev`. Integrasi Ayo,
-> Google, dan LLM sudah ada kerangkanya; endpoint/kredensial diisi & disempurnakan
-> saat pengembangan lokal (Claude Code).
+> **Repo & branch:** `kangwiroo/Faceverify`, branch **`claude/fiftyninehub`**.
+> (Nama repo "Faceverify" dipakai ulang; isinya sekarang FiftyNineHub.)
+>
+> **Status:** fondasi berjalan di `wrangler dev`. **wrangler/D1/R2/deploy
+> dikerjakan di lokal (Claude Code).** `database_id` di `wrangler.toml` masih
+> `REPLACE_AFTER_D1_CREATE`.
+
+## 📚 Dokumentasi (baca ini untuk konteks penuh)
+
+- **[`CLAUDE.md`](CLAUDE.md)** — panduan proyek lengkap untuk Claude Code lokal:
+  stack, struktur, data model, auth PIN, peran, status integrasi, perintah
+  setup/deploy, dan aturan wajib (no secrets di Git).
+- **[`docs/NOTES.md`](docs/NOTES.md)** — keputusan desain, asumsi, dan **TODO**,
+  termasuk **⚠️ CATATAN mobile token AVM** (menunggu contoh dari user).
+
+### Ringkasan status
+
+| Fitur | Status |
+|---|---|
+| Login **PIN 8 digit** (tanpa email) | ✅ jalan (admin demo `12345678`) |
+| Halaman semua divisi + hak akses per peran | ✅ jalan |
+| UI pro, responsif (PC/tablet/HP), **tema gelap/terang** | ✅ jalan |
+| **Telegram** storage berkas + **rollback 5 tahap** | ✅ jalan (teruji dgn mock) |
+| **Bind akun Ayo AVM** + mobile token per user (HRD) | ✅ simpan; **pemakaian token: TODO** |
+| **Social media binding** (akun per platform) | ✅ registry (OAuth asli: TODO) |
+| **Jadwal Booking** = iframe Ayo | ✅ (isi `AYO_EMBED_URL`) |
+| Endpoint **Ayo** asli (bookings/transaksi) | ⏳ placeholder (`src/lib/ayo.js`) |
+| **Google Sheets/Docs**, **Nemotron** round-robin | ✅ kerangka siap, perlu kredensial |
 
 ## Halaman
 
-Dashboard · **Kasir** · **Finance** · **Social Media** · **Event** ·
-**Member** · **Penjadwalan** · **HRD** · **Prestasi & Riwayat Absen** ·
-**Master Admin** — dengan login dan hak akses per peran
+Dashboard · **Kasir** · **Jadwal Booking** (iframe Ayo) · **Finance** ·
+**Social Media** (konten + binding akun) · **Event** · **Member** ·
+**Penjadwalan** · **HRD** (staff + bind Ayo AVM) · **Prestasi & Riwayat Absen** ·
+**Dokumen** (Telegram) · **Master Admin** — login PIN + hak akses per peran
 (`master_admin`, `kasir`, `finance`, `socmed`, `hrd`, `staff`).
 
 ## Strategi hemat D1 & R2
