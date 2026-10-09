@@ -1,43 +1,88 @@
-import { ROLES, can } from './lib/db.js';
+import { can } from './lib/db.js';
 
-export const NAV = [
-  ['dashboard', 'Dashboard', 'M3 12l9-8 9 8M5 10v10h14V10'],
-  ['kasir', 'Kasir', 'M4 7h16v10H4z M8 7v10'],
-  ['finance', 'Finance', 'M4 19V5m4 14V9m4 10V7m4 12v-6m4 6V11'],
-  ['socmed', 'Social Media', 'M12 8a4 4 0 100 8 4 4 0 000-8z M20 12h2M2 12h2'],
-  ['event', 'Event', 'M4 6h16v14H4z M8 3v4M16 3v4M4 10h16'],
-  ['member', 'Member', 'M16 14a4 4 0 10-8 0 M12 7a3 3 0 100 6 3 3 0 000-6z'],
-  ['schedule', 'Penjadwalan', 'M4 6h16v14H4z M8 3v4M16 3v4M9 14h6'],
-  ['hrd', 'HRD', 'M12 7a3 3 0 100 6 3 3 0 000-6z M6 20a6 6 0 1112 0'],
-  ['prestasi', 'Prestasi & Absen', 'M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0z'],
-  ['admin', 'Master Admin', 'M12 3l8 4v5c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V7z'],
+// Ikon + aksen warna per divisi (aksen sudah divalidasi colorblind-safe).
+export const PAGES = {
+  dashboard: { label: 'Dashboard', accent: '#7c5cff', icon: 'M3 12l9-8 9 8M5 10v10h5v-6h4v6h5V10' },
+  kasir:     { label: 'Kasir', accent: '#10b981', icon: 'M4 7h16v10H4zM4 11h16M9 15h3' },
+  finance:   { label: 'Finance', accent: '#f59e0b', icon: 'M4 19V5m4 14V9m4 10V7m4 12v-6m4 6V11' },
+  socmed:    { label: 'Social Media', accent: '#ec4899', icon: 'M12 8a4 4 0 100 8 4 4 0 000-8zM20 12h2M2 12h2M12 2v2M12 20v2' },
+  event:     { label: 'Event', accent: '#8b5cf6', icon: 'M4 6h16v14H4zM8 3v4M16 3v4M4 10h16' },
+  member:    { label: 'Member', accent: '#06b6d4', icon: 'M16 14a4 4 0 10-8 0M12 7a3 3 0 100 6 3 3 0 000-6z' },
+  schedule:  { label: 'Penjadwalan', accent: '#3b82f6', icon: 'M4 6h16v14H4zM8 3v4M16 3v4M9 13h6M9 17h4' },
+  hrd:       { label: 'HRD', accent: '#14b8a6', icon: 'M12 7a3 3 0 100 6 3 3 0 000-6zM6 20a6 6 0 1112 0' },
+  prestasi:  { label: 'Prestasi & Absen', accent: '#f97316', icon: 'M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0z' },
+  admin:     { label: 'Master Admin', accent: '#64748b', icon: 'M12 3l8 4v5c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V7z' },
+};
+
+const SECTIONS = [
+  ['Operasional', ['dashboard', 'kasir', 'event', 'member']],
+  ['Keuangan', ['finance']],
+  ['Konten', ['socmed']],
+  ['SDM', ['hrd', 'schedule', 'prestasi']],
+  ['Sistem', ['admin']],
 ];
 
-export function layout({ user, active, title, body }) {
-  const items = NAV.filter(([page]) => can(user.role, page)).map(([page, label, d]) => `
-    <a href="/${page}" class="nav-item ${page === active ? 'active' : ''}">
-      <svg viewBox="0 0 24 24"><path d="${d}"/></svg><span>${label}</span>
-    </a>`).join('');
+// Keterhubungan antar divisi (satu divisi berelasi dengan yang lain).
+export const RELATIONS = {
+  dashboard: [],
+  kasir: ['finance', 'member', 'event'],
+  finance: ['kasir', 'event', 'admin'],
+  socmed: ['event', 'member'],
+  event: ['kasir', 'finance', 'member', 'schedule', 'socmed'],
+  member: ['kasir', 'event', 'socmed'],
+  schedule: ['hrd', 'event', 'prestasi'],
+  hrd: ['schedule', 'prestasi'],
+  prestasi: ['hrd', 'schedule'],
+  admin: ['finance', 'hrd'],
+};
 
+const initials = (name) => name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
+const navIcon = (d) => `<svg viewBox="0 0 24 24"><path d="${d}"/></svg>`;
+
+function sidebar(user, active) {
+  const secs = SECTIONS.map(([title, pages]) => {
+    const items = pages.filter((p) => can(user.role, p)).map((p) => {
+      const m = PAGES[p];
+      return `<a href="/${p}" class="nav-item ${p === active ? 'active' : ''}" style="--ac:${m.accent}">
+        <span class="dot"></span>${navIcon(m.icon)}<span>${m.label}</span></a>`;
+    }).join('');
+    return items ? `<div class="nav-sec">${title}</div>${items}` : '';
+  }).join('');
+
+  return `<aside class="sidebar">
+    <div class="brand"><span class="logo">59</span><div><strong>FiftyNineHub</strong><small>Venue Management</small></div></div>
+    <nav>${secs}</nav>
+    <div class="side-foot">
+      <span class="avatar" style="--accent:${PAGES[active]?.accent || '#7c5cff'}">${initials(user.name)}</span>
+      <div class="who"><strong>${user.name}</strong><small>${user.role}</small></div>
+      <form method="post" action="/logout" style="margin-left:auto"><button class="btn ghost sm">Keluar</button></form>
+    </div>
+  </aside>`;
+}
+
+export function layout({ user, active, title, section = 'FiftyNineHub', body }) {
+  const accent = PAGES[active]?.accent || '#7c5cff';
   return `<!doctype html><html lang="id"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${title} · FiftyNineHub</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%236d28d9'/%3E%3Ctext x='16' y='22' font-size='15' fill='white' text-anchor='middle' font-family='sans-serif' font-weight='bold'%3E59%3C/text%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%237c5cff'/%3E%3Ctext x='16' y='22' font-size='14' fill='white' text-anchor='middle' font-family='sans-serif' font-weight='bold'%3E59%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/app.css"></head>
 <body>
+<input type="checkbox" id="drawer" hidden>
 <div class="shell">
-  <aside class="sidebar">
-    <div class="brand"><span class="logo">59</span><div><strong>FiftyNineHub</strong><small>Venue Management</small></div></div>
-    <nav>${items}</nav>
-    <div class="side-foot">
-      <div class="who"><strong>${user.name}</strong><small>${user.role}</small></div>
-      <form method="post" action="/logout"><button class="btn ghost sm">Keluar</button></form>
-    </div>
-  </aside>
-  <main class="content">
-    <header class="topbar"><h1>${title}</h1></header>
+  ${sidebar(user, active)}
+  <div class="content" style="--accent:${accent}">
+    <header class="topbar">
+      <label for="drawer" class="ic-btn burger"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></label>
+      <div class="title"><div class="crumb">${section} › <b>${title}</b></div><h1>${title}</h1></div>
+      <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input placeholder="Cari…"></div>
+      <button class="ic-btn" title="Notifikasi"><span class="badge"></span><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg></button>
+    </header>
     <div class="page">${body}</div>
-  </main>
+  </div>
+  <label for="drawer" class="scrim"></label>
 </div>
 <script src="/app.js"></script>
 </body></html>`;
@@ -46,15 +91,22 @@ export function layout({ user, active, title, body }) {
 export function loginPage(error = '') {
   return `<!doctype html><html lang="id"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Masuk · FiftyNineHub</title><link rel="stylesheet" href="/app.css"></head>
+<title>Masuk · FiftyNineHub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/app.css"></head>
 <body class="login-body">
 <form class="login-card" method="post" action="/login">
-  <div class="brand center"><span class="logo lg">59</span><strong>FiftyNineHub</strong></div>
-  <p class="muted center">Sistem manajemen venue</p>
-  ${error ? `<p class="err">${error}</p>` : ''}
+  <div class="brand center"><span class="logo lg">59</span><div class="center"><strong>FiftyNineHub</strong><small class="faint">Semua divisi, satu hub</small></div></div>
+  ${error ? `<p class="err center">${error}</p>` : ''}
   <label>Email<input name="email" type="email" value="admin@fiftynine.id" required></label>
   <label>Kata sandi<input name="password" type="password" value="admin123" required></label>
   <button class="btn primary">Masuk</button>
   <p class="hint">Demo: admin@fiftynine.id / admin123</p>
 </form></body></html>`;
 }
+
+// dipakai halaman lain
+export const NAV = Object.entries(PAGES).map(([p, m]) => [p, m.label, m.icon]);
+export const SECTION_OF = {};
+SECTIONS.forEach(([t, ps]) => ps.forEach((p) => (SECTION_OF[p] = t)));

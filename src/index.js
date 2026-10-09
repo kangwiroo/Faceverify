@@ -2,7 +2,7 @@ import { currentUser, login, sessionCookie, clearCookie } from './lib/auth.js';
 import { can } from './lib/db.js';
 import { run } from './lib/db.js';
 import { uuid, hashPassword } from './lib/crypto.js';
-import { layout, loginPage, NAV } from './layout.js';
+import { layout, loginPage, PAGES, SECTION_OF } from './layout.js';
 import * as pages from './pages.js';
 import { generateSchedule } from './lib/schedule.js';
 
@@ -10,7 +10,7 @@ const html = (body, status = 200, headers = {}) =>
   new Response(body, { status, headers: { 'content-type': 'text/html; charset=utf-8', ...headers } });
 const redirect = (to, headers = {}) => new Response(null, { status: 303, headers: { location: to, ...headers } });
 
-const PAGE_TITLES = Object.fromEntries(NAV.map(([p, label]) => [p, label]));
+const PAGE_TITLES = Object.fromEntries(Object.entries(PAGES).map(([p, m]) => [p, m.label]));
 const PAGE_FN = {
   dashboard: pages.dashboard, kasir: pages.kasir, finance: pages.finance, socmed: pages.socmed,
   event: pages.event, member: pages.member, schedule: pages.schedule, hrd: pages.hrd,
@@ -106,9 +106,9 @@ export default {
     if (path === '/') return redirect('/dashboard');
     const page = parts[0];
     if (PAGE_FN[page]) {
-      if (!can(user.role, page)) return html(layout({ user, active: page, title: 'Akses ditolak', body: '<p class="err">Peran kamu tidak punya akses ke halaman ini.</p>' }), 403);
+      if (!can(user.role, page)) return html(layout({ user, active: page, title: 'Akses ditolak', section: 'Sistem', body: '<p class="err">Peran kamu tidak punya akses ke halaman ini.</p>' }), 403);
       const body = await PAGE_FN[page](env, user);
-      return html(layout({ user, active: page, title: PAGE_TITLES[page], body }));
+      return html(layout({ user, active: page, title: PAGE_TITLES[page], section: SECTION_OF[page] || 'FiftyNineHub', body }));
     }
 
     // Aset statis (fallback) — biasanya sudah ditangani binding [assets]
