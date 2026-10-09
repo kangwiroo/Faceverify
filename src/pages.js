@@ -2,6 +2,8 @@ import { all, first, can } from './lib/db.js';
 import { ayoConfigured } from './lib/ayo.js';
 import { googleConfigured } from './lib/google.js';
 import { llmConfigured } from './lib/llm.js';
+import { telegramConfigured } from './lib/telegram.js';
+import { listDocuments, MAX_VERSIONS } from './lib/docs.js';
 import { PAGES, RELATIONS } from './layout.js';
 
 export const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -125,11 +127,12 @@ export async function dashboard(env, user) {
     <div class="rt">${esc(String(e.starts_at || '').slice(0, 16))}<br><span class="tag">${esc(e.status)}</span></div></div>`).join('') || '<p class="muted">Belum ada event.</p>';
 
   // grid divisi
-  const counts = { kasir: '—', finance: rpShort(balance), socmed: posts, event: events, member: members, schedule: sched, hrd: staff, prestasi: ach, admin: '•' };
+  const docCount = (await first(env, 'SELECT COUNT(*) n FROM documents')).n;
+  const counts = { kasir: '—', finance: rpShort(balance), socmed: posts, event: events, member: members, schedule: sched, hrd: staff, prestasi: ach, docs: docCount, admin: '•' };
   const desc = {
     kasir: 'Transaksi & booking harian', finance: 'Arus kas & laporan', socmed: 'Konten terjadwal',
     event: 'Agenda acara venue', member: 'Basis member Ayo', schedule: 'Shift staff otomatis',
-    hrd: 'Staff & peran', prestasi: 'Prestasi & absen', admin: 'Integrasi & pengguna',
+    hrd: 'Staff & peran', prestasi: 'Prestasi & absen', docs: 'Berkas di Telegram (5 versi)', admin: 'Integrasi & pengguna',
   };
   const divs = Object.keys(PAGES).filter((p) => p !== 'dashboard' && can(user.role, p)).map((p) => {
     const m = PAGES[p];
@@ -138,10 +141,9 @@ export async function dashboard(env, user) {
       <div class="n">${counts[p] ?? ''}</div></a>`;
   }).join('');
 
+  const ic = (ok, label) => `<span class="chip ${ok ? 'ok' : 'off'}">${ok ? '●' : '○'} ${label}</span>`;
   const integ = `<div class="chips" style="margin-top:4px">
-    <span class="chip ${ayoConfigured(env) ? 'ok' : 'off'}">${ayoConfigured(env) ? '●' : '○'} Ayo</span>
-    <span class="chip ${googleConfigured(env) ? 'ok' : 'off'}">${googleConfigured(env) ? '●' : '○'} Google</span>
-    <span class="chip ${llmConfigured(env) ? 'ok' : 'off'}">${llmConfigured(env) ? '●' : '○'} Nemotron</span></div>`;
+    ${ic(ayoConfigured(env), 'Ayo')} ${ic(googleConfigured(env), 'Google')} ${ic(llmConfigured(env), 'Nemotron')} ${ic(telegramConfigured(env), 'Telegram')}</div>`;
 
   return `
     <div class="hero">
@@ -281,6 +283,68 @@ export async function kasir(env, user) {
     <p class="muted mt">${configured
       ? 'Daftar booking hari ini ditarik dari Ayo (cache edge) — tampil setelah endpoint Ayo diisi.'
       : 'Sambungkan Ayo (AYO_BASE_URL + AYO_TOKEN) untuk menarik booking & transaksi.'}</p>`;
+}
+
+const kb = (n) => { n = Number(n || 0); return n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1024).toFixed(0) + ' KB'; };
+
+export async function docs(env, user) {
+  const configured = telegramConfigured(env);
+  const docs = await listDocuments(env);
+
+  const status = `<span class="chip ${configured ? 'ok' : 'off'}">${configured ? '●' : '○'} Telegram ${configured ? 'terhubung' : 'belum diset'}</span>`;
+
+  const upload = `<form class="card upload" method="post" action="/api/docs/upload" enctype="multipart/form-data">
+      <label class="dropzone"><input type="file" name="file" required hidden>
+        <span class="dz-ic">${icon('M12 15V3M8 7l4-4 4 4M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2')}</span>
+        <span class="dz-name">Pilih atau jatuhkan berkas</span>
+        <span class="faint" style="font-size:12px">Disimpan ke Telegram · maks ~50&nbsp;MB</span>
+      </label>
+      <div class="up-fields">
+        <label>Nama dokumen<input name="name" placeholder="(opsional, default nama file)"></label>
+        <label>Kategori<select name="category">${['umum', 'finance', 'event', 'socmed', 'hrd'].map((c) => `<option>${c}</option>`).join('')}</select></label>
+        <button class="btn accent" ${configured ? '' : 'disabled'}>Unggah / versi baru</button>
+      </div>
+    </form>`;
+
+  const cards = docs.map((d) => {
+    const cur = d.versions.find((v) => v.is_current) || d.versions[d.versions.length - 1];
+    const nodes = d.versions.map((v) => `
+      <div class="node ${v.is_current ? 'cur' : ''}">
+        <div class="nd"></div>
+        <div class="nb">
+          <b>v${v.version}${v.is_current ? ' · aktif' : ''}</b>
+          <small>${esc(String(v.uploaded_at || '').slice(5, 16))} · ${kb(v.size)}</small>
+          <div class="na">
+            <a class="btn ghost sm" href="/dl/${v.id}">Unduh</a>
+            ${v.is_current ? '' : `<form method="post" action="/api/docs/${d.id}/rollback/${v.version}"><button class="btn sm">Pulihkan</button></form>`}
+          </div>
+        </div>
+      </div>`).join('');
+    return `<div class="doccard" style="--ac:${PAGES.docs.accent}">
+      <div class="dc-head">
+        <div class="dc-ic">${icon(PAGES.docs.icon)}</div>
+        <div class="dc-meta"><b>${esc(d.name)}</b><small>${esc(d.category)} · v${d.current_version} · diperbarui ${esc(String(d.updated_at || '').slice(0, 10))}</small></div>
+        <form method="post" action="/api/docs/${d.id}/delete" onsubmit="return confirm('Hapus dokumen & semua versinya?')"><button class="btn danger sm">Hapus</button></form>
+      </div>
+      <div class="dc-sub">
+        <span class="faint">Riwayat versi (maks ${MAX_VERSIONS} — backup & rollback):</span>
+        <form class="newver" method="post" action="/api/docs/upload" enctype="multipart/form-data">
+          <input type="hidden" name="name" value="${esc(d.name)}"><input type="hidden" name="category" value="${esc(d.category)}">
+          <label class="btn ghost sm">+ Versi baru<input type="file" name="file" required hidden onchange="this.form.submit()"></label>
+        </form>
+      </div>
+      <div class="timeline">${nodes}</div>
+    </div>`;
+  }).join('') || '<p class="muted">Belum ada dokumen. Unggah berkas pertama di atas.</p>';
+
+  return header('docs', user) +
+    `<div class="card" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+       ${status}
+       <span class="faint" style="font-size:13px">Semua berkas disimpan di Telegram. Tiap perubahan membuat versi baru; ${MAX_VERSIONS} versi terakhir disimpan sebagai backup (rollback ${MAX_VERSIONS} tahap), sisanya dihapus otomatis.</span>
+     </div>` +
+    upload +
+    `<div class="docgrid">${cards}</div>` +
+    (configured ? '' : `<p class="muted mt">Set <code>TELEGRAM_BOT_TOKEN</code> & <code>TELEGRAM_CHAT_ID</code> via <code>wrangler secret put</code> untuk mengaktifkan penyimpanan.</p>`);
 }
 
 export async function admin(env, user) {

@@ -5,6 +5,7 @@ import { uuid, hashPassword } from './lib/crypto.js';
 import { layout, loginPage, PAGES, SECTION_OF } from './layout.js';
 import * as pages from './pages.js';
 import { generateSchedule } from './lib/schedule.js';
+import { uploadVersion, rollback as rollbackDoc, removeDocument, resolveDownload } from './lib/docs.js';
 
 const html = (body, status = 200, headers = {}) =>
   new Response(body, { status, headers: { 'content-type': 'text/html; charset=utf-8', ...headers } });
@@ -14,7 +15,7 @@ const PAGE_TITLES = Object.fromEntries(Object.entries(PAGES).map(([p, m]) => [p,
 const PAGE_FN = {
   dashboard: pages.dashboard, kasir: pages.kasir, finance: pages.finance, socmed: pages.socmed,
   event: pages.event, member: pages.member, schedule: pages.schedule, hrd: pages.hrd,
-  prestasi: pages.prestasi, admin: pages.admin,
+  prestasi: pages.prestasi, docs: pages.docs, admin: pages.admin,
 };
 
 // Definisi resource untuk create: tabel + builder baris dari form.
@@ -37,8 +38,27 @@ async function insertRow(env, table, row) {
 }
 
 async function handleApi(req, env, user, parts) {
-  const [, resource, b, c] = parts; // api / <resource> / (create | <id>/delete | generate)
-  const form = Object.fromEntries((await req.formData()).entries());
+  const [, resource, b, c, d] = parts; // api / <resource> / ...
+  const ct = req.headers.get('content-type') || '';
+  const fd = ct.includes('form') ? await req.formData() : new FormData();
+  const form = Object.fromEntries(fd.entries());
+
+  // Dokumen (storage Telegram)
+  if (resource === 'docs') {
+    if (!can(user.role, 'docs')) return new Response('forbidden', { status: 403 });
+    if (b === 'upload') {
+      const file = form.file;
+      if (!file || typeof file.arrayBuffer !== 'function') return redirect('/docs');
+      const bytes = await file.arrayBuffer();
+      try {
+        await uploadVersion(env, { name: form.name || file.name || 'dokumen', category: form.category, bytes, contentType: file.type, userId: user.id });
+      } catch (err) { return new Response('Upload gagal: ' + err.message, { status: 502 }); }
+      return redirect('/docs');
+    }
+    if (c === 'rollback' && d) { await rollbackDoc(env, b, Number(d)); return redirect('/docs'); }
+    if (c === 'delete') { await removeDocument(env, b); return redirect('/docs'); }
+    return new Response('not found', { status: 404 });
+  }
 
   // Penjadwalan otomatis
   if (resource === 'schedule' && b === 'generate') {
@@ -75,6 +95,7 @@ async function handleApi(req, env, user, parts) {
 
 export default {
   async fetch(req, env, ctx) {
+   try {
     const url = new URL(req.url);
     const path = url.pathname;
     const parts = path.split('/').filter(Boolean);
@@ -96,6 +117,18 @@ export default {
       return redirect('/login');
     }
 
+    // Unduh berkas dari Telegram (token tidak pernah ke klien)
+    if (parts[0] === 'dl' && parts[1] && req.method === 'GET') {
+      const dl = await resolveDownload(env, parts[1]).catch(() => null);
+      if (!dl) return new Response('berkas tidak ditemukan', { status: 404 });
+      const upstream = await fetch(dl.url);
+      if (!upstream.ok) return new Response('gagal mengambil berkas', { status: 502 });
+      return new Response(upstream.body, { headers: {
+        'content-type': dl.type,
+        'content-disposition': `attachment; filename="${dl.name.replace(/"/g, '')}"`,
+      } });
+    }
+
     // API
     if (parts[0] === 'api') {
       if (req.method !== 'POST') return new Response('method not allowed', { status: 405 });
@@ -114,5 +147,8 @@ export default {
     // Aset statis (fallback) — biasanya sudah ditangani binding [assets]
     if (env.ASSETS) return env.ASSETS.fetch(req);
     return new Response('not found', { status: 404 });
+   } catch (err) {
+    return new Response('Kesalahan server: ' + (err && err.message || 'tidak diketahui'), { status: 500 });
+   }
   },
 };

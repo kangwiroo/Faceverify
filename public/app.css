@@ -9,11 +9,16 @@
   --accent:#7c5cff; /* diatur per halaman */
   --sidebar-w:252px;
 }
+/* Tema terang: otomatis (ikut perangkat) bila pengguna belum memilih… */
 @media (prefers-color-scheme: light){
-  :root{ --bg:#eef1f7; --bg-2:#e7ebf3; --surface:#ffffff; --surface-2:#f5f7fb; --surface-3:#eef1f7;
+  :root:not([data-theme]){ --bg:#eef1f7; --bg-2:#e7ebf3; --surface:#ffffff; --surface-2:#f5f7fb; --surface-3:#eef1f7;
     --line:#e4e8f0; --line-2:#d7dce7; --text:#171a22; --muted:#5a6273; --faint:#8a93a6;
     --shadow:0 10px 30px rgba(20,30,60,.08); }
 }
+/* …atau dipaksa lewat tombol tema. */
+:root[data-theme="light"]{ --bg:#eef1f7; --bg-2:#e7ebf3; --surface:#ffffff; --surface-2:#f5f7fb; --surface-3:#eef1f7;
+  --line:#e4e8f0; --line-2:#d7dce7; --text:#171a22; --muted:#5a6273; --faint:#8a93a6;
+  --shadow:0 10px 30px rgba(20,30,60,.08); }
 *{box-sizing:border-box} html,body{margin:0}
 body{background:
     radial-gradient(1200px 600px at 100% -10%, color-mix(in srgb,var(--brand) 14%, transparent), transparent 60%),
@@ -191,3 +196,39 @@ td form{margin:0}
   .stats{grid-template-columns:1fr 1fr}
   .hero h2{font-size:19px}
 }
+
+/* ===== Dokumen (storage Telegram) ===== */
+.upload{display:grid;grid-template-columns:1.1fr 2fr;gap:16px;align-items:center;margin-bottom:18px}
+.dropzone{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;
+  border:1.5px dashed var(--line-2);border-radius:14px;padding:22px;cursor:pointer;background:var(--surface-2);transition:.15s}
+.dropzone:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 7%,var(--surface-2))}
+.dz-ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;color:#fff;
+  background:linear-gradient(135deg,var(--accent),var(--brand))}
+.dz-ic svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.dz-name{font-weight:600;font-size:14px;word-break:break-word}
+.up-fields{display:grid;gap:10px;align-content:center}
+@media (max-width:720px){ .upload{grid-template-columns:1fr} }
+
+.docgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+.doccard{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:16px;box-shadow:var(--shadow)}
+.dc-head{display:flex;align-items:center;gap:12px}
+.dc-ic{width:40px;height:40px;border-radius:11px;flex:none;display:grid;place-items:center;color:var(--ac);
+  background:color-mix(in srgb,var(--ac) 16%,transparent)}
+.dc-ic svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.dc-meta{min-width:0;flex:1} .dc-meta b{font-size:15px;display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dc-meta small{color:var(--faint);font-size:12px}
+.dc-sub{margin:14px 0 8px;font-size:12px}
+
+/* timeline versi */
+.timeline{position:relative;display:grid;gap:10px;padding-left:8px}
+.timeline::before{content:"";position:absolute;left:12px;top:6px;bottom:6px;width:2px;background:var(--line-2)}
+.node{display:flex;gap:12px;position:relative}
+.node .nd{width:12px;height:12px;border-radius:50%;background:var(--surface);border:2px solid var(--line-2);margin-top:4px;flex:none;z-index:1}
+.node.cur .nd{background:var(--ac);border-color:var(--ac);box-shadow:0 0 0 4px color-mix(in srgb,var(--ac) 22%,transparent)}
+.node .nb{display:flex;align-items:center;gap:10px;flex-wrap:wrap;flex:1}
+.node .nb b{font-size:13.5px} .node.cur .nb b{color:var(--ac)}
+.node .nb small{color:var(--faint);font-size:12px}
+.node .na{display:flex;gap:7px;margin-left:auto;flex-wrap:wrap}
+.node .na form{margin:0}
+
+#themeBtn .i-sun,#themeBtn .i-moon{stroke:currentColor}

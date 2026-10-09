@@ -11,6 +11,7 @@ export const PAGES = {
   schedule:  { label: 'Penjadwalan', accent: '#3b82f6', icon: 'M4 6h16v14H4zM8 3v4M16 3v4M9 13h6M9 17h4' },
   hrd:       { label: 'HRD', accent: '#14b8a6', icon: 'M12 7a3 3 0 100 6 3 3 0 000-6zM6 20a6 6 0 1112 0' },
   prestasi:  { label: 'Prestasi & Absen', accent: '#f97316', icon: 'M8 21h8M12 17v4M7 4h10v5a5 5 0 01-10 0z' },
+  docs:      { label: 'Dokumen', accent: '#f43f5e', icon: 'M7 3h7l5 5v13H7zM14 3v5h5M9 13h6M9 17h5' },
   admin:     { label: 'Master Admin', accent: '#64748b', icon: 'M12 3l8 4v5c0 5-3.5 7.5-8 9-4.5-1.5-8-4-8-9V7z' },
 };
 
@@ -19,6 +20,7 @@ const SECTIONS = [
   ['Keuangan', ['finance']],
   ['Konten', ['socmed']],
   ['SDM', ['hrd', 'schedule', 'prestasi']],
+  ['Arsip', ['docs']],
   ['Sistem', ['admin']],
 ];
 
@@ -33,7 +35,8 @@ export const RELATIONS = {
   schedule: ['hrd', 'event', 'prestasi'],
   hrd: ['schedule', 'prestasi'],
   prestasi: ['hrd', 'schedule'],
-  admin: ['finance', 'hrd'],
+  docs: ['finance', 'event', 'socmed'],
+  admin: ['finance', 'hrd', 'docs'],
 };
 
 const initials = (name) => name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase();
@@ -68,7 +71,8 @@ export function layout({ user, active, title, section = 'FiftyNineHub', body }) 
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%237c5cff'/%3E%3Ctext x='16' y='22' font-size='14' fill='white' text-anchor='middle' font-family='sans-serif' font-weight='bold'%3E59%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/app.css"></head>
+<link rel="stylesheet" href="/app.css">
+<script>try{var t=localStorage.getItem('fnh.theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}</script></head>
 <body>
 <input type="checkbox" id="drawer" hidden>
 <div class="shell">
@@ -78,6 +82,7 @@ export function layout({ user, active, title, section = 'FiftyNineHub', body }) 
       <label for="drawer" class="ic-btn burger"><svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></label>
       <div class="title"><div class="crumb">${section} › <b>${title}</b></div><h1>${title}</h1></div>
       <div class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg><input placeholder="Cari…"></div>
+      <button class="ic-btn" id="themeBtn" title="Ganti tema" type="button"><svg class="i-moon" viewBox="0 0 24 24"><path d="M21 12.8A9 9 0 1111.2 3a7 7 0 009.8 9.8z"/></svg><svg class="i-sun" viewBox="0 0 24 24" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M19 5l-1.5 1.5M6.5 17.5L5 19"/></svg></button>
       <button class="ic-btn" title="Notifikasi"><span class="badge"></span><svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 10-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 01-3.4 0"/></svg></button>
     </header>
     <div class="page">${body}</div>

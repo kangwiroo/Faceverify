@@ -33,8 +33,13 @@ migrations_dir = "migrations"
 binding = "FILES"
 bucket_name = "fiftyninehub-files"
 
+# Basis API Telegram (opsional, untuk bot-API self-hosted). Default api.telegram.org.
+# TELEGRAM_API_BASE boleh ditaruh di sini karena bukan rahasia; token-nya rahasia.
+
 # Rahasia yang HARUS diset via `wrangler secret put` (JANGAN taruh di sini / Git):
-#   SESSION_SECRET   -> kunci tanda tangan sesi (acak panjang)
-#   LLM_API_KEYS     -> daftar API key dipisah koma (round-robin)
-#   AYO_TOKEN        -> token akses API Ayo Indonesia
-#   GOOGLE_SA_JSON   -> JSON service account Google (untuk Sheets/Docs)
+#   SESSION_SECRET     -> kunci tanda tangan sesi (acak panjang)
+#   LLM_API_KEYS       -> daftar API key dipisah koma (round-robin)
+#   AYO_TOKEN          -> token akses API Ayo Indonesia
+#   GOOGLE_SA_JSON     -> JSON service account Google (untuk Sheets/Docs)
+#   TELEGRAM_BOT_TOKEN -> token bot Telegram (storage berkas)
+#   TELEGRAM_CHAT_ID   -> id channel/chat privat tempat menyimpan berkas

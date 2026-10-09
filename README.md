@@ -28,6 +28,23 @@ Dashboard · **Kasir** · **Finance** · **Social Media** · **Event** ·
 - **LLM dipakai seminimal mungkin**: penjadwalan utama **deterministik**
   (round-robin, tanpa biaya); Nemotron hanya dipanggil bila diminta meninjau.
 
+## Storage berkas: Telegram (5 tahap rollback)
+
+Semua dokumen/berkas disimpan di **Telegram** (bot → channel privat), bukan di
+D1/R2. D1 hanya menyimpan metadata + rantai versi (`src/lib/telegram.js`,
+`src/lib/docs.js`).
+
+- Unggah berkas → bot mengirimnya ke channel, `file_id` + `message_id` disimpan.
+- Unggah berkas dengan **nama sama** = **versi baru**; versi lama jadi **backup**.
+- Disimpan maksimal **5 versi** terbaru → **rollback 5 tahap**. Versi lebih tua
+  dihapus otomatis (pesan Telegram ikut dihapus).
+- Unduh lewat route `/dl/<versionId>` yang mem-proxy dari Telegram, sehingga
+  token bot **tidak pernah** sampai ke browser.
+- Halaman **Dokumen** menampilkan timeline versi dengan tombol Unduh & Pulihkan.
+
+Batas bot API ~50 MB/berkas (bisa lebih besar dengan bot-API self-hosted via
+`TELEGRAM_API_BASE`).
+
 ## LLM round-robin (Nemotron Ultra)
 
 `src/lib/llm.js` membaca `LLM_API_KEYS` (secret, dipisah koma), memakai
@@ -44,6 +61,8 @@ wrangler secret put SESSION_SECRET
 wrangler secret put LLM_API_KEYS     # "key1,key2,...,key20"
 wrangler secret put AYO_TOKEN
 wrangler secret put GOOGLE_SA_JSON   # isi JSON service account
+wrangler secret put TELEGRAM_BOT_TOKEN
+wrangler secret put TELEGRAM_CHAT_ID
 ```
 
 ## Setup & jalankan
