@@ -100,6 +100,9 @@ yang sama dengan aplikasi (`verify-core.js` / `verify-session.js`).
 
 Ini menguji jalur kedipan/warna/keputusan, bukan merender wajah realistis.
 
+Versi 3D ada di `sim3d.html` (Three.js): kepala abstrak yang berputar, berkedip,
+dan tersinari warna kilasan — tetap memakai kode deteksi yang sama.
+
 > Yang belum bisa diuji tanpa perangkat: **wajah asli lolos liveness** di depan
 > kamera sungguhan. Itu satu-satunya bagian yang butuh kamera, dan dilakukan
 > paling akhir. Untuk mengukur ketahanan terhadap wajah palsu, gunakan dataset

@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FaceVerify — Simulator Liveness 3D</title>
+  <style>
+    :root { --cyan:#00aeef; --magenta:#ec008c; --yellow:#fff200; --ok:#00b37a; --bad:#e5195f; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:"Space Grotesk",system-ui,sans-serif; background:#0c0c10; color:#f4f4f8; }
+    .wrap { max-width:720px; margin:0 auto; padding:20px 16px 40px; }
+    h1 { font-size:22px; margin:0 0 4px;
+      background:linear-gradient(90deg,#ff3b3b,#ff9f1c,#fff200,#2ee66b,#00aeef,#5b5bff,#ec008c);
+      -webkit-background-clip:text; background-clip:text; color:transparent; }
+    p.sub { color:#9a9aab; margin:0 0 18px; font-size:14px; }
+    .stage { position:relative; aspect-ratio:1; border-radius:20px; overflow:hidden; background:#07070a; }
+    .stage canvas { width:100%!important; height:100%!important; display:block; }
+    .pill { position:absolute; top:14px; left:50%; transform:translateX(-50%);
+      padding:6px 14px; border-radius:999px; background:rgba(0,0,0,.55); font-size:13px; font-weight:700; z-index:2; }
+    .controls { display:flex; gap:10px; flex-wrap:wrap; margin:16px 0; }
+    button { font:inherit; font-weight:700; border:0; border-radius:12px; padding:11px 16px; cursor:pointer; }
+    .run { background:linear-gradient(90deg,#00aeef,#2ee66b); color:#0c0c10; }
+    .mode { background:#1f1f29; color:#f4f4f8; border:1px solid #2c2c38; }
+    .mode.active { outline:2px solid var(--cyan); }
+    .panel { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .box { background:#16161d; border:1px solid #2c2c38; border-radius:14px; padding:14px; }
+    .box h2 { font-size:12px; margin:0 0 8px; color:#9a9aab; font-weight:700; text-transform:uppercase; letter-spacing:.04em; }
+    .big { font-size:26px; font-weight:700; }
+    .verdict { margin-top:12px; padding:14px; border-radius:14px; font-weight:700; text-align:center; }
+    .verdict.ok { background:rgba(0,179,122,.15); color:var(--ok); }
+    .verdict.bad { background:rgba(229,25,95,.15); color:var(--bad); }
+    .note { color:#6b6b7b; font-size:12px; margin-top:18px; }
+    a { color:var(--cyan); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Simulator Liveness 3D</h1>
+    <p class="sub">Kepala 3D abstrak (bukan foto siapa pun) yang berputar, berkedip, dan terkena cahaya
+      warna. Nilai kedipan & pantulan dialirkan ke kode deteksi yang sama dengan aplikasi — tanpa kamera.
+      Versi datar: <a href="sim.html">sim.html</a>.</p>
+
+    <div class="stage"><div class="pill" id="pill">Memuat 3D…</div><div id="view"></div></div>
+
+    <div class="controls">
+      <button class="mode active" id="mLive">Wajah hidup</button>
+      <button class="mode" id="mPhoto">Foto diam</button>
+      <button class="run" id="run" disabled>Jalankan simulasi</button>
+    </div>
+
+    <div class="panel">
+      <div class="box"><h2>Kedipan terdeteksi</h2><div class="big" id="blinks">0</div><div id="ear">EAR: —</div></div>
+      <div class="box"><h2>Skor pantulan warna</h2><div class="big" id="flash">—</div><div>ambang ≥ 0.15</div></div>
+    </div>
+    <div class="verdict" id="verdict" style="display:none"></div>
+
+    <p class="note">Mode “Foto diam”: mata tidak berkedip dan permukaan tidak memantulkan cahaya layar,
+      sehingga seharusnya ditolak. Kepala ini sengaja dibuat abstrak, bukan wajah realistis.</p>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="verify-core.js"></script>
+  <script src="verify-session.js"></script>
+  <script src="sim/liveness-sim.js"></script>
+  <script>
+  const core = window.VerifyCore, Sess = window.VerifySession, Sim = window.LivenessSim;
+  const $ = (id) => document.getElementById(id);
+  const PALETTE = Sess.DEFAULT_PALETTE;
+  let mode = 'live';
+
+  // ---------- Scene 3D ----------
+  const host = $('view');
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
+  camera.position.set(0, 0, 7);
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  host.appendChild(renderer.domElement);
+  function resize() { const s = host.clientWidth; renderer.setSize(s, s); camera.aspect = 1; camera.updateProjectionMatrix(); }
+
+  // Cahaya: ambient lemah + "cahaya layar" berwarna yang memantul di wajah.
+  const ambient = new THREE.AmbientLight(0x404048, 1);
+  scene.add(ambient);
+  const screenLight = new THREE.PointLight(0xffffff, 0.0, 50);
+  screenLight.position.set(0, 0, 6);
+  scene.add(screenLight);
+
+  const face = new THREE.Group();
+  scene.add(face);
+
+  // Kepala: elipsoid, permukaan abu-abu + rangka (wireframe) tipis di atasnya.
+  const headGeo = new THREE.SphereGeometry(1.9, 40, 32);
+  headGeo.scale(1, 1.25, 0.95);
+  const headMat = new THREE.MeshStandardMaterial({ color: 0x9aa0aa, roughness: 0.85, metalness: 0.0 });
+  const head = new THREE.Mesh(headGeo, headMat);
+  face.add(head);
+  const wire = new THREE.Mesh(headGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, wireframe: true, transparent: true, opacity: 0.06 }));
+  face.add(wire);
+
+  // Mata: bola putih yang bisa "memipih" saat berkedip + pupil.
+  function makeEye(x) {
+    const g = new THREE.Group();
+    const white = new THREE.Mesh(new THREE.SphereGeometry(0.42, 24, 20),
+      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 }));
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.17, 20, 16),
+      new THREE.MeshStandardMaterial({ color: 0x15151c }));
+    pupil.position.z = 0.32;
+    g.add(white, pupil);
+    g.position.set(x, 0.35, 1.7);
+    // enam titik landmark berwarna (cyan/magenta/kuning) seperti versi datar
+    const CMYK = [0x00aeef, 0xec008c, 0xfff200];
+    const dots = Sim.eyePoints(0, 0, 0.9, 0.42).map((p, i) => {
+      const d = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8),
+        new THREE.MeshBasicMaterial({ color: CMYK[i % 3] }));
+      d.position.set(p.x, p.y, 0.42);
+      g.add(d);
+      return d;
+    });
+    g.userData = { white, pupil, dots };
+    return g;
+  }
+  const eyeL = makeEye(-0.78), eyeR = makeEye(0.78);
+  face.add(eyeL, eyeR);
+
+  // Hidung & mulut: garis sederhana (abstrak).
+  const line = (pts, color = 0xcfd3da) => {
+    const geo = new THREE.BufferGeometry().setFromPoints(pts.map((p) => new THREE.Vector3(...p)));
+    return new THREE.Line(geo, new THREE.LineBasicMaterial({ color }));
+  };
+  face.add(line([[0, 0.3, 1.9], [0, -0.5, 2.0], [0.18, -0.7, 1.9]]));          // hidung
+  const mouthPts = [];
+  for (let t = -0.6; t <= 0.6; t += 0.1) mouthPts.push([t, -1.15 + 0.18 * t * t, 1.8]);
+  face.add(line(mouthPts));
+
+  // Atur bukaan mata (0.6 tertutup .. 6 terbuka) -> skala vertikal bola mata & titik.
+  function setOpen(openH) {
+    const sy = Math.max(0.08, openH / 6);
+    [eyeL, eyeR].forEach((eye) => {
+      eye.userData.white.scale.y = sy;
+      eye.userData.pupil.visible = openH > 2.5;
+      eye.userData.dots.forEach((d, i) => {
+        const p = Sim.eyePoints(0, 0, 0.9, openH / 6 * 0.42)[i];
+        d.position.y = p.y;
+      });
+    });
+    return core.eyeAspectRatio(Sim.eyePoints(0, 0, 10, openH)); // EAR dari landmark sintetis
+  }
+
+  function setFlash(hex) {
+    if (!hex) { screenLight.intensity = 0; scene.background = new THREE.Color(0x07070a); return; }
+    const c = new THREE.Color(hex);
+    scene.background = c.clone().multiplyScalar(mode === 'live' ? 0.5 : 0.85);
+    // Wajah hidup memantulkan cahaya; foto diam hampir tidak.
+    screenLight.color = c;
+    screenLight.intensity = mode === 'live' ? 3.2 : 0.15;
+  }
+
+  let yaw = 0, running = false;
+  function renderLoop() {
+    requestAnimationFrame(renderLoop);
+    if (!running) { yaw += 0.006; face.rotation.y = Math.sin(yaw) * 0.45; }
+    renderer.render(scene, camera);
+  }
+
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  async function run() {
+    if (running) return;
+    running = true;
+    $('verdict').style.display = 'none';
+    const live = mode === 'live';
+    const blink = core.makeBlinkDetector();
+
+    // Fase 1: putar kepala + (kedipan bila hidup)
+    for (let i = 0; i < 26; i++) {
+      face.rotation.y = Math.sin(i * 0.18) * 0.4;
+      const openH = live ? Sim.lidHeight(i, { blinkAt: 13, dur: 4 }) : 6;
+      const ear = setOpen(openH);
+      blink.push(ear);
+      $('pill').textContent = live ? '👁️ Menguji kedipan…' : 'Foto diam — tidak ada kedipan';
+      $('ear').textContent = 'EAR: ' + ear.toFixed(3);
+      $('blinks').textContent = blink.count;
+      await sleep(55);
+    }
+    face.rotation.y = 0; setOpen(6);
+
+    // Fase 2: kilasan warna
+    const { flashOrder } = Sess.randomChallenge();
+    for (let i = 0; i < flashOrder.length; i++) {
+      $('pill').textContent = 'Kilasan warna ' + (i + 1) + '/' + flashOrder.length;
+      setFlash(flashOrder[i]);
+      await sleep(300);
+    }
+    setFlash(null);
+
+    const samples = live ? Sim.liveFlashSamples(flashOrder) : Sim.photoFlashSamples(flashOrder);
+    const flash = Sess.scoreChallenge(flashOrder, samples);
+    $('flash').textContent = flash.score.toFixed(2);
+
+    // Keputusan (verifyAttempt asli)
+    const ref = Array.from({ length: 128 }, (_, i) => Math.sin(i) * 0.1);
+    const verdict = Sess.verifyAttempt({
+      reference: ref, descriptors: [ref.map((v) => v + 0.01)],
+      blinked: blink.count > 0, flashSamples: samples, issuedFlashOrder: flashOrder,
+    });
+    const el = $('verdict');
+    el.style.display = 'block';
+    el.className = 'verdict ' + (verdict.ok ? 'ok' : 'bad');
+    const why = { ok: 'Lolos', 'no-blink': 'Ditolak — tidak ada kedipan', 'no-match': 'Ditolak — wajah beda',
+      'weak-flash': 'Ditolak — pantulan warna lemah', replay: 'Ditolak — urutan warna salah' }[verdict.reason];
+    el.textContent = (verdict.ok ? '✓ ' : '✗ ') + why;
+    $('pill').textContent = 'Selesai';
+    running = false;
+  }
+
+  $('mLive').onclick = () => { mode = 'live'; $('mLive').classList.add('active'); $('mPhoto').classList.remove('active'); };
+  $('mPhoto').onclick = () => { mode = 'photo'; $('mPhoto').classList.add('active'); $('mLive').classList.remove('active'); };
+  $('run').onclick = run;
+
+  window.__set3d = (openH, hex) => { setOpen(openH); setFlash(hex || null); renderer.render(scene, camera); };
+
+  addEventListener('resize', resize);
+  resize(); setFlash(null); renderLoop();
+  $('run').disabled = false; $('pill').textContent = 'Tekan “Jalankan simulasi”';
+  </script>
+</body>
+</html>
