@@ -237,9 +237,21 @@ async function runCapture(mode) {
 
     if (mode === 'enroll') {
       saveEnrollment(hold);
+      if (FaceVerifyAPI.enabled()) {
+        setPill('Menyimpan ke server…');
+        try { await FaceVerifyAPI.enroll(hold.descriptors); }
+        catch (e) { console.error(e); showScreen('home'); toast('Tersimpan lokal, server gagal: ' + e.message); return; }
+      }
       showScreen('home');
       toast('Wajah referensi tersimpan ✓');
       return;
+    }
+
+    // Mode server: minta tantangan acak lebih dulu (urutan warna ditentukan server)
+    let challenge = null;
+    if (FaceVerifyAPI.enabled()) {
+      challenge = await FaceVerifyAPI.challenge();
+      check(session);
     }
 
     // 2. Kedipan
@@ -251,7 +263,7 @@ async function runCapture(mode) {
 
     // 3. Kilasan warna layar
     go(step + 1);
-    const flash = await runFlash(session, hold.box);
+    const flash = await runFlash(session, hold.box, challenge ? challenge.flashOrder : FLASH_COLORS);
     check(session);
 
     // 4. Pencocokan
@@ -261,29 +273,46 @@ async function runCapture(mode) {
     await sleep(1200);
     check(session);
 
-    const distance = hold.descriptors
-      .map((d) => euclideanDistance(Array.from(state.reference), Array.from(d)))
-      .reduce((a, b) => a + b, 0) / hold.descriptors.length;
     const threshold = Number(el.threshold.value);
-    const verdict = decide({
-      distance, threshold,
-      blinked: true, requireBlink: false, // kedipan sudah diperiksa di langkahnya sendiri
-      flash: flash.score, requireFlash: el.optFlash.checked,
-    });
-    const { ok, similarity } = verdict;
+    let ok, similarity, reason, meta;
+
+    if (challenge) {
+      // Keputusan dihitung di server; referensi tidak pernah dikirim ke sini.
+      const r = await FaceVerifyAPI.verify({
+        challengeId: challenge.challengeId,
+        descriptors: hold.descriptors.map((d) => Array.from(d).map(Number)),
+        blinked: el.optBlink.checked, // true hanya jika langkah kedipan dijalankan & lolos
+        flashSamples: flash.samples,
+        threshold,
+      });
+      ok = r.ok; similarity = r.similarity; reason = r.reason;
+      meta = `Diverifikasi di server · kemiripan ${(similarity * 100).toFixed(0)}% · sisa percobaan ${r.attemptsLeft}`;
+    } else {
+      const distance = hold.descriptors
+        .map((d) => euclideanDistance(Array.from(state.reference), Array.from(d)))
+        .reduce((a, b) => a + b, 0) / hold.descriptors.length;
+      const verdict = decide({
+        distance, threshold,
+        blinked: true, requireBlink: false, // kedipan sudah diperiksa di langkahnya sendiri
+        flash: flash.score, requireFlash: el.optFlash.checked,
+      });
+      ok = verdict.ok; similarity = verdict.similarity; reason = verdict.reason;
+      meta = `Jarak ${distance.toFixed(3)} (ambang ${threshold.toFixed(2)}) · pantulan warna ${flash.score.toFixed(2)}`;
+    }
 
     const detail = {
       ok: 'Wajah kamu cocok dengan wajah referensi.',
       'no-match': 'Wajah tidak cocok dengan wajah referensi. Pastikan pencahayaan cukup dan wajah menghadap lurus.',
       'weak-flash': 'Pantulan warna layar di wajah terlalu lemah. Naikkan kecerahan layar dan coba lagi.',
-    }[verdict.reason];
+      'replay': 'Urutan kilasan warna tidak sesuai sesi ini. Ulangi verifikasi secara langsung.',
+    }[reason] || 'Verifikasi gagal.';
 
     showResult({
       ok,
       title: ok ? 'Verifikasi Wajah Berhasil' : 'Verifikasi Wajah Gagal',
       detail,
       similarity,
-      meta: `Jarak ${distance.toFixed(3)} (ambang ${threshold.toFixed(2)}) · pantulan warna ${flash.score.toFixed(2)}`,
+      meta,
       steps,
       reached: ok ? steps.length : steps.length - 1,
       failed: !ok,
@@ -294,10 +323,15 @@ async function runCapture(mode) {
     stopCamera();
     if (state.session !== session) return;
     if (!(err instanceof FlowError)) console.error(err);
+    const serverReason = err && err.data && err.data.reason;
+    const serverMsg = {
+      locked: 'Terlalu banyak percobaan. Mulai verifikasi baru.',
+      expired: 'Sesi kedaluwarsa. Mulai lagi.',
+    }[serverReason];
     showResult({
       ok: false,
-      title: err instanceof FlowError ? err.message : 'Terjadi kesalahan',
-      detail: err instanceof FlowError ? err.detail : 'Silakan coba lagi.',
+      title: err instanceof FlowError ? err.message : (serverMsg ? 'Verifikasi dihentikan' : 'Terjadi kesalahan'),
+      detail: err instanceof FlowError ? err.detail : (serverMsg || (err && err.message) || 'Silakan coba lagi.'),
       steps,
       reached: step,
       failed: true,
@@ -458,26 +492,26 @@ function setFlash(color) {
   if (color) document.documentElement.style.setProperty('--flash', color);
 }
 
-async function runFlash(session, box) {
+async function runFlash(session, box, order = FLASH_COLORS) {
   setPill('Tetap diam', 'good');
   clearCanvas(el.overlay);
   const baseline = sampleFace(box);
   const samples = [];
 
   try {
-    for (let i = 0; i < FLASH_COLORS.length; i++) {
+    for (let i = 0; i < order.length; i++) {
       check(session);
-      setFlash(FLASH_COLORS[i]);
+      setFlash(order[i]);
       await sleep(FLASH_SETTLE_MS);
       const sample = sampleFace(box);
-      samples.push({ color: hexToRgb(FLASH_COLORS[i]), delta: sample.map((v, k) => v - baseline[k]) });
-      setProgress(0.7 + 0.3 * ((i + 1) / FLASH_COLORS.length));
+      samples.push({ color: hexToRgb(order[i]), delta: sample.map((v, k) => v - baseline[k]) });
+      setProgress(0.7 + 0.3 * ((i + 1) / order.length));
       await sleep(FLASH_MS - FLASH_SETTLE_MS);
     }
   } finally {
     setFlash(null);
   }
-  return { score: flashScore(samples) };
+  return { score: flashScore(samples), samples };
 }
 
 /* ================= Gambar ================= */

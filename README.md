@@ -39,6 +39,40 @@ Atau publikasikan folder ini ke GitHub Pages / Netlify / Vercel (semuanya https)
 | `index.html` | Tata letak halaman                               |
 | `style.css`  | Tema CMYK + pelangi, mode terang/gelap otomatis  |
 | `app.js`     | Kamera, deteksi wajah, cek kedipan, verifikasi   |
+| `verify-core.js`    | Logika inti murni (jarak, kedipan, warna, keputusan) |
+| `verify-session.js` | Tantangan acak & sesi (dipakai server)         |
+| `api.js`            | Klien untuk mode server (opsional)             |
+| `server/server.js`  | Server verifikasi tanpa dependensi             |
+| `test/`             | Uji otomatis (`node --test`)                   |
+
+## Mode server (keputusan di server)
+
+Secara bawaan semua proses di browser (mode lokal, bisa jadi situs statis).
+Untuk verifikasi yang lebih sulit dibobol, nyalakan server:
+
+```bash
+node server/server.js        # jalan di http://localhost:8787
+```
+
+Lalu arahkan browser ke server itu (di konsol halaman, atau sebelum skrip):
+
+```js
+localStorage.setItem('faceverify.server', 'http://localhost:8787');
+```
+
+Yang berubah di mode server:
+
+- **Referensi wajah disimpan di server**, tidak pernah dikirim balik ke browser.
+- **Urutan warna kilasan diacak server tiap sesi** dan diperiksa saat verifikasi,
+  sehingga rekaman lama (replay) dengan urutan berbeda ditolak (`reason: replay`).
+- **Kedipan diwajibkan server** (tidak bisa dimatikan dari sisi klien), ada
+  **kedaluwarsa sesi** dan **batas 3 percobaan** per sesi.
+
+Logika sesi ada di `verify-session.js` dan dipakai ulang oleh `server/server.js`.
+
+> **Batas yang masih ada:** ekstraksi descriptor wajah tetap di browser (pakai
+> face-api), jadi penyerang teknis masih bisa mengirim descriptor palsu.
+> Penguatan berikutnya: pindahkan deteksi & ekstraksi wajah ke server.
 
 ## Pengujian (tanpa kamera)
 
