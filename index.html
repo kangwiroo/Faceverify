@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FaceVerify</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Ccircle cx=%279%27 cy=%279%27 r=%277%27 fill=%27%2300aeef%27/%3E%3Ccircle cx=%2723%27 cy=%279%27 r=%277%27 fill=%27%23ec008c%27/%3E%3Ccircle cx=%279%27 cy=%2723%27 r=%277%27 fill=%27%23fff200%27/%3E%3Ccircle cx=%2723%27 cy=%2723%27 r=%277%27 fill=%27%23111%27/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <script defer src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/dist/face-api.js"></script>
+  <script defer src="app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <span class="cmyk-dots" aria-hidden="true"><i class="c"></i><i class="m"></i><i class="y"></i><i class="k"></i></span>
+      <h1 class="rainbow-text">FaceVerify</h1>
+    </div>
+    <p id="status" class="status loading">Memuat model wajah…</p>
+  </header>
+
+  <main class="grid">
+    <!-- Kamera -->
+    <section class="card stage-card">
+      <h2><span class="step c">1</span> Kamera</h2>
+      <div id="stage" class="stage idle">
+        <div class="ring" aria-hidden="true"></div>
+        <div class="viewport">
+          <video id="video" autoplay muted playsinline></video>
+          <canvas id="overlay"></canvas>
+          <p id="placeholder" class="placeholder">Kamera belum aktif</p>
+        </div>
+      </div>
+      <p id="hint" class="hint">Tekan “Nyalakan kamera” untuk mulai.</p>
+      <div class="row">
+        <button id="btnCamera" class="btn btn-c" disabled>Nyalakan kamera</button>
+      </div>
+    </section>
+
+    <!-- Referensi -->
+    <section class="card">
+      <h2><span class="step m">2</span> Wajah referensi</h2>
+      <div class="ref-box">
+        <canvas id="refCanvas" width="320" height="320"></canvas>
+        <p id="refEmpty" class="placeholder">Belum ada wajah terdaftar</p>
+      </div>
+      <p id="refInfo" class="hint">Unggah foto atau ambil dari kamera.</p>
+      <div class="row">
+        <label class="btn btn-m" id="lblUpload">
+          Unggah foto
+          <input id="fileInput" type="file" accept="image/*" hidden disabled>
+        </label>
+        <button id="btnCapture" class="btn btn-y" disabled>Ambil dari kamera</button>
+        <button id="btnClear" class="btn btn-ghost" disabled>Hapus</button>
+      </div>
+    </section>
+
+    <!-- Verifikasi -->
+    <section class="card verify-card">
+      <h2><span class="step y">3</span> Verifikasi</h2>
+
+      <div class="settings">
+        <label class="field">
+          <span>Ambang jarak <b id="thrVal">0.50</b></span>
+          <input id="threshold" type="range" min="0.30" max="0.70" step="0.01" value="0.50">
+          <small>Lebih kecil = lebih ketat</small>
+        </label>
+        <label class="toggle">
+          <input id="liveness" type="checkbox" checked>
+          <span class="switch"></span>
+          <span>Cek kedipan (anti foto)</span>
+        </label>
+      </div>
+
+      <button id="btnVerify" class="btn btn-rainbow" disabled>Verifikasi sekarang</button>
+
+      <div id="result" class="result" hidden>
+        <div class="meter"><div id="meterFill" class="meter-fill"></div></div>
+        <p id="resultTitle" class="result-title"></p>
+        <p id="resultDetail" class="result-detail"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="cmyk-bar" aria-hidden="true"></div>
+    <p>Semua proses berjalan di browser kamu. Foto dan data wajah tidak dikirim ke server mana pun.</p>
+  </footer>
+</body>
+</html>
